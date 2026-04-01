@@ -1,18 +1,16 @@
 #!/usr/bin/env node
-/**
- * render-review.js — Generate a self-contained review.html from fig-diff data
- *
- * Usage:
- *   node render-review.js <fileKey> [--no-images] [--no-open] [--output path]
- *
- * Reads:
- *   ~/.figma-differ/<fileKey>/index.json
- *   ~/.figma-differ/<fileKey>/diffs/*/review.json
- *   ~/.figma-differ/<fileKey>/diffs/*/*/structural_diff.json
- *
- * Outputs:
- *   review.html (self-contained, shareable)
- */
+// render-review.js — Generate a self-contained review.html from fig-diff data
+//
+// Usage:
+//   node render-review.js <fileKey> [--no-images] [--no-open] [--output path]
+//
+// Reads:
+//   ~/.figma-differ/<fileKey>/index.json
+//   ~/.figma-differ/<fileKey>/diffs/<range>/review.json
+//   ~/.figma-differ/<fileKey>/diffs/<range>/<nodeId>/structural_diff.json
+//
+// Outputs:
+//   review.html (self-contained, shareable)
 
 const fs = require('fs')
 const path = require('path')
@@ -467,7 +465,7 @@ function generateHtml(data) {
     const DATA = ${jsonPayload};
   </script>
   <script>
-\${generateAppJs()}
+${generateAppJs()}
   </script>
 </body>
 </html>`
