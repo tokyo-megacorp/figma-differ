@@ -550,9 +550,168 @@ function openReview(idx) {
   renderAccordion();
 }
 
-// Placeholder — filled in Task 5
 function renderAccordion() {
-  app.innerHTML = '<p style="padding:24px">Accordion view — Task 5</p>';
+  state.screen = 'accordion';
+  const review = DATA.reviews[state.reviewIdx];
+  const diffs = DATA.diffs[review.diffRange] || {};
+  const decisions = review.decisions || [];
+
+  // Filter decisions by active severity filters
+  const filtered = decisions.filter(d => state.activeFilters.has(d.severity));
+
+  // Group by page
+  const pages = {};
+  const pageTotals = {};
+  for (const d of decisions) {
+    pageTotals[d.page] = (pageTotals[d.page] || 0) + 1;
+  }
+  for (const d of filtered) {
+    if (!pages[d.page]) pages[d.page] = [];
+    pages[d.page].push(d);
+  }
+
+  let html = '<div class="topbar">';
+  html += '<div class="topbar-left">';
+  html += '<button class="back-btn" onclick="renderIndex()">← Back</button>';
+  html += '<span style="color:var(--border)">|</span>';
+  html += '<span style="font-weight:600">' + formatTimestamp(review.baseline) + ' → ' + formatTimestamp(review.current) + '</span>';
+  html += '</div>';
+  html += '<div class="filters">';
+  ['structural', 'cosmetic', 'unchanged'].forEach(sev => {
+    const count = decisions.filter(d => d.severity === sev).length;
+    const active = state.activeFilters.has(sev);
+    html += '<button class="filter-pill filter-pill-' + sev + (active ? '' : ' inactive') + '" ';
+    html += 'onclick="toggleFilter(\\'+ sev + '\\')">' + count + ' ' + sev + '</button>';
+  });
+  html += '</div></div>';
+
+  html += '<div class="content">';
+
+  const pageNames = Object.keys(pages).sort();
+  let frameIdx = 0;
+  for (const page of pageNames) {
+    const frames = pages[page];
+    html += '<div class="page-group-header"><span>' + escapeHtml(page) + ' — ' + frames.length + ' change(s)</span>';
+    html += '<span>' + frames.length + ' of ' + (pageTotals[page] || '?') + ' frames</span></div>';
+
+    for (const d of frames) {
+      const expanded = state.expandedFrames.has(d.nodeId);
+      const diff = diffs[d.nodeId];
+      const focused = frameIdx === state.focusIdx;
+      html += '<div class="frame-card' + (expanded ? ' expanded' : '') + (focused ? ' focused' : '') + '" data-node="' + d.nodeId + '" data-idx="' + frameIdx + '">';
+      html += '<div class="frame-card-header" onclick="toggleFrame(\\'' + d.nodeId + '\\')">';
+      html += '<div class="frame-card-left">';
+      html += '<span class="severity-dot severity-dot-' + d.severity + '"></span>';
+      html += '<span class="frame-card-name" onclick="event.stopPropagation();openDetail(\\'' + d.nodeId + '\\')">' + escapeHtml(d.nodeName) + '</span>';
+      html += '<span class="frame-card-stats">' + d.nodeCountBefore + ' → ' + d.nodeCountAfter + ' nodes (' + (d.nodeCountDelta >= 0 ? '+' : '') + d.nodeCountDelta + ')</span>';
+      html += '</div>';
+      html += '<span class="frame-card-stats">' + escapeHtml(d.summary) + ' ' + (expanded ? '▾' : '▸') + '</span>';
+      html += '</div>';
+
+      // Expanded body with diff hunks
+      html += '<div class="frame-card-body">';
+      if (diff && diff.changes) {
+        html += renderDiffHunks(diff.changes, d.nodeId);
+      } else {
+        html += '<div class="diff-meta">No detailed diff data available</div>';
+      }
+      html += '</div></div>';
+      frameIdx++;
+    }
+  }
+
+  if (filtered.length === 0) {
+    html += '<p style="color:var(--text-secondary);margin-top:24px;">No changes match the current filters.</p>';
+  }
+
+  html += '</div>';
+  app.innerHTML = html;
+}
+
+function renderDiffHunks(changes, nodeId) {
+  let html = '';
+  const imageUrl = DATA.imageUrls[nodeId];
+  if (imageUrl) {
+    html += '<div class="lazy-img-container" data-src="' + imageUrl + '">';
+    html += '<div class="img-placeholder">Loading preview...</div></div>';
+  }
+
+  for (const n of (changes.removedNodes || [])) {
+    html += '<div class="diff-hunk diff-remove">\\u2212 "' + escapeHtml(n.name) + '" <span class="diff-meta">' + escapeHtml(n.type) + '</span></div>';
+  }
+  for (const n of (changes.addedNodes || [])) {
+    html += '<div class="diff-hunk diff-add">+ "' + escapeHtml(n.name) + '" <span class="diff-meta">' + escapeHtml(n.type) + '</span></div>';
+  }
+  for (const c of (changes.componentSwaps || [])) {
+    html += '<div class="diff-hunk diff-change">\\u21c4 "' + escapeHtml(c.name) + '" <span class="diff-meta">' + escapeHtml(c.before || '') + ' \\u2192 ' + escapeHtml(c.after || '') + '</span></div>';
+  }
+  for (const b of (changes.bboxChanges || [])) {
+    const bef = b.before || {};
+    const aft = b.after || {};
+    html += '<div class="diff-hunk diff-change">\\u25b3 "' + escapeHtml(b.name) + '" <span class="diff-meta">' + (bef.w||'?') + '\\u00d7' + (bef.h||'?') + ' \\u2192 ' + (aft.w||'?') + '\\u00d7' + (aft.h||'?');
+    if (b.dw) html += ' (dw: ' + (b.dw > 0 ? '+' : '') + Math.round(b.dw) + ', dh: ' + (b.dh > 0 ? '+' : '') + Math.round(b.dh) + ')';
+    html += '</span></div>';
+  }
+  for (const v of (changes.visibilityChanges || [])) {
+    html += '<div class="diff-hunk diff-change">"' + escapeHtml(v.name) + '" <span class="diff-meta">visible: ' + v.before + ' \\u2192 ' + v.after + '</span></div>';
+  }
+  for (const t of (changes.textChanges || [])) {
+    html += '<div class="diff-hunk diff-change">"' + escapeHtml(t.name) + '" <span class="diff-meta">"' + escapeHtml(String(t.before).slice(0, 60)) + '" \\u2192 "' + escapeHtml(String(t.after).slice(0, 60)) + '"</span></div>';
+  }
+  for (const f of (changes.fillChanges || [])) {
+    html += '<div class="diff-hunk diff-change">"' + escapeHtml(f.name) + '" <span class="diff-meta">' + (f.added||[]).length + ' fill(s) added, ' + (f.removed||[]).length + ' removed</span></div>';
+  }
+  for (const f of (changes.fontChanges || [])) {
+    const b = f.before || {};
+    const a = f.after || {};
+    html += '<div class="diff-hunk diff-change">"' + escapeHtml(f.name) + '" <span class="diff-meta">font: ' + (b.fontFamily||'') + ' ' + (b.fontSize||'') + ' \\u2192 ' + (a.fontFamily||'') + ' ' + (a.fontSize||'') + '</span></div>';
+  }
+  for (const o of (changes.opacityChanges || [])) {
+    html += '<div class="diff-hunk diff-change">"' + escapeHtml(o.name) + '" <span class="diff-meta">opacity: ' + o.before + ' \\u2192 ' + o.after + '</span></div>';
+  }
+  for (const l of (changes.layoutChanges || [])) {
+    const b = l.before || {};
+    const a = l.after || {};
+    html += '<div class="diff-hunk diff-change">"' + escapeHtml(l.name) + '" <span class="diff-meta">layout: ' + (b.layoutMode||'none') + ' \\u2192 ' + (a.layoutMode||'none') + '</span></div>';
+  }
+  for (const s of (changes.strokeChanges || [])) {
+    html += '<div class="diff-hunk diff-change">"' + escapeHtml(s.name) + '" <span class="diff-meta">' + (s.added||[]).length + ' stroke(s) added, ' + (s.removed||[]).length + ' removed</span></div>';
+  }
+  for (const c of (changes.constraintChanges || [])) {
+    html += '<div class="diff-hunk diff-change">"' + escapeHtml(c.name) + '" <span class="diff-meta">constraints changed</span></div>';
+  }
+  for (const e of (changes.effectChanges || [])) {
+    html += '<div class="diff-hunk diff-change">"' + escapeHtml(e.name) + '" <span class="diff-meta">' + (e.added||[]).length + ' effect(s) added, ' + (e.removed||[]).length + ' removed</span></div>';
+  }
+
+  return html;
+}
+
+function toggleFrame(nodeId) {
+  if (state.expandedFrames.has(nodeId)) {
+    state.expandedFrames.delete(nodeId);
+  } else {
+    state.expandedFrames.add(nodeId);
+  }
+  renderAccordion();
+  setupLazyImages();
+}
+
+function toggleFilter(sev) {
+  if (state.activeFilters.has(sev)) {
+    state.activeFilters.delete(sev);
+  } else {
+    state.activeFilters.add(sev);
+  }
+  state.expandedFrames.clear();
+  state.focusIdx = -1;
+  renderAccordion();
+}
+
+function openDetail(nodeId) {
+  state.detailNodeId = nodeId;
+  renderDetail(nodeId);
+  setupLazyImages();
 }
 
 // Placeholder — filled in Task 6
@@ -561,6 +720,7 @@ function renderDetail(nodeId) {
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────
+function setupLazyImages() {}
 renderIndex();
 `
 }
