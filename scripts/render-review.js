@@ -579,7 +579,7 @@ function renderAccordion() {
     const count = decisions.filter(d => d.severity === sev).length;
     const active = state.activeFilters.has(sev);
     html += '<button class="filter-pill filter-pill-' + sev + (active ? '' : ' inactive') + '" ';
-    html += 'onclick="toggleFilter(\\'+ sev + '\\')">' + count + ' ' + sev + '</button>';
+    html += 'onclick="toggleFilter(\\'' + sev + '\\')">' + count + ' ' + sev + '</button>';
   });
   html += '</div></div>';
 
