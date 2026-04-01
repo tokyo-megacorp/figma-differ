@@ -855,8 +855,88 @@ function renderDetailHunk(groupKey, item, type) {
   }
 }
 
-// ── Boot ──────────────────────────────────────────────────────────────────
-function setupLazyImages() {}
+// ── Lazy Image Loading ────────────────────────────────────────────────────
+function setupLazyImages() {
+  const observer = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) {
+        const container = entry.target;
+        const src = container.dataset.src;
+        if (src) {
+          const img = document.createElement('img');
+          img.src = src;
+          img.onload = () => {
+            container.innerHTML = '';
+            container.appendChild(img);
+          };
+          img.onerror = () => {
+            container.innerHTML = '<div class="img-error">Image unavailable</div>';
+          };
+          observer.unobserve(container);
+        }
+      }
+    }
+  }, { rootMargin: '200px' });
+
+  document.querySelectorAll('.lazy-img-container[data-src]').forEach(el => {
+    observer.observe(el);
+  });
+}
+
+// ── Keyboard Navigation ──────────────────────────────────────────────────
+document.addEventListener('keydown', (e) => {
+  if (state.screen === 'accordion') {
+    const cards = document.querySelectorAll('.frame-card');
+    if (e.key === 'j') {
+      e.preventDefault();
+      state.focusIdx = Math.min(state.focusIdx + 1, cards.length - 1);
+      updateFocus(cards);
+    } else if (e.key === 'k') {
+      e.preventDefault();
+      state.focusIdx = Math.max(state.focusIdx - 1, 0);
+      updateFocus(cards);
+    } else if (e.key === 'Enter' && state.focusIdx >= 0) {
+      e.preventDefault();
+      const card = cards[state.focusIdx];
+      if (card) toggleFrame(card.dataset.node);
+    } else if (e.key === 'o' && state.focusIdx >= 0) {
+      e.preventDefault();
+      const card = cards[state.focusIdx];
+      if (card) openDetail(card.dataset.node);
+    } else if (e.key === 'Escape') {
+      renderIndex();
+    }
+  } else if (state.screen === 'detail') {
+    const items = document.querySelectorAll('.sidebar-item');
+    const currentIdx = Array.from(items).findIndex(el => el.classList.contains('active'));
+    if (e.key === 'j') {
+      e.preventDefault();
+      const next = Math.min(currentIdx + 1, items.length - 1);
+      const nodeId = items[next]?.onclick?.toString().match(/openDetail\\('([^']+)'\\)/)?.[1];
+      if (nodeId) openDetail(nodeId);
+    } else if (e.key === 'k') {
+      e.preventDefault();
+      const prev = Math.max(currentIdx - 1, 0);
+      const nodeId = items[prev]?.onclick?.toString().match(/openDetail\\('([^']+)'\\)/)?.[1];
+      if (nodeId) openDetail(nodeId);
+    } else if (e.key === 'Escape') {
+      renderAccordion();
+      setupLazyImages();
+    }
+  }
+});
+
+function updateFocus(cards) {
+  cards.forEach((c, i) => {
+    c.classList.toggle('focused', i === state.focusIdx);
+  });
+  if (cards[state.focusIdx]) {
+    cards[state.focusIdx].scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+}
+
+// Initial setup
+setupLazyImages();
 renderIndex();
 `
 }
