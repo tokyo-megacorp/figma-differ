@@ -1,0 +1,147 @@
+<h2>Fig-Diff Review: Layout Direction</h2>
+<p class="subtitle">GitFork-inspired diff review for Figma design changes. Which layout feels right?</p>
+
+<div class="cards">
+  <!-- Option A: Classic Fork layout -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1a1a2e;border-radius:8px;padding:16px;font-family:monospace;font-size:11px;color:#e0e0e0;min-height:320px;">
+        <!-- Top bar -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#16213e;border-radius:6px;margin-bottom:12px;">
+          <div>
+            <span style="color:#8be9fd;">Profile</span>
+            <span style="opacity:0.5;margin:0 8px;">|</span>
+            <span style="opacity:0.6;">Apr 1 09:00 → Apr 1 16:40</span>
+          </div>
+          <div>
+            <span style="background:#ff5555;padding:2px 8px;border-radius:10px;font-size:10px;color:white;">12 structural</span>
+            <span style="background:#f1fa8c;padding:2px 8px;border-radius:10px;font-size:10px;color:#1a1a2e;margin-left:4px;">8 cosmetic</span>
+            <span style="background:#50fa7b;padding:2px 8px;border-radius:10px;font-size:10px;color:#1a1a2e;margin-left:4px;">528 unchanged</span>
+          </div>
+        </div>
+        <!-- Main split -->
+        <div style="display:flex;gap:12px;height:260px;">
+          <!-- Sidebar -->
+          <div style="width:220px;background:#0f3460;border-radius:6px;padding:10px;overflow:hidden;">
+            <div style="color:#8be9fd;font-size:10px;text-transform:uppercase;margin-bottom:8px;letter-spacing:1px;">Changed Frames</div>
+            <div style="color:#bd93f9;margin-bottom:4px;">&#9660; Security (4)</div>
+            <div style="padding-left:12px;margin-bottom:2px;"><span style="color:#ff5555;">&#9679;</span> PIN Modal</div>
+            <div style="padding-left:12px;margin-bottom:2px;background:#1a1a4e;border-radius:3px;padding:3px 6px;"><span style="color:#ff5555;">&#9679;</span> <span style="color:white;">Biometrics</span></div>
+            <div style="padding-left:12px;margin-bottom:2px;"><span style="color:#f1fa8c;">&#9679;</span> 2FA Setup</div>
+            <div style="padding-left:12px;margin-bottom:6px;"><span style="color:#ff5555;">&#9679;</span> Recovery</div>
+            <div style="color:#bd93f9;margin-bottom:4px;">&#9660; Profile (3)</div>
+            <div style="padding-left:12px;margin-bottom:2px;"><span style="color:#f1fa8c;">&#9679;</span> Settings</div>
+            <div style="padding-left:12px;margin-bottom:2px;"><span style="color:#ff5555;">&#9679;</span> Avatar</div>
+            <div style="padding-left:12px;margin-bottom:6px;"><span style="color:#f1fa8c;">&#9679;</span> Edit Name</div>
+            <div style="color:#bd93f9;margin-bottom:4px;">&#9654; Wealth Tab (5)</div>
+            <div style="color:#bd93f9;margin-bottom:4px;">&#9654; Orders (3)</div>
+            <div style="color:#bd93f9;margin-bottom:4px;opacity:0.4;">&#9654; Onboarding (5)</div>
+          </div>
+          <!-- Main panel -->
+          <div style="flex:1;background:#0a0a1a;border-radius:6px;padding:12px;overflow:hidden;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+              <div>
+                <span style="color:white;font-size:13px;font-weight:bold;">Biometrics</span>
+                <span style="background:#ff5555;padding:1px 6px;border-radius:8px;font-size:9px;color:white;margin-left:6px;">structural</span>
+              </div>
+              <div style="display:flex;gap:6px;">
+                <span style="background:#50fa7b;padding:3px 10px;border-radius:4px;font-size:10px;color:#1a1a2e;cursor:pointer;">Approve</span>
+                <span style="background:#ff5555;padding:3px 10px;border-radius:4px;font-size:10px;color:white;cursor:pointer;">Flag</span>
+              </div>
+            </div>
+            <div style="color:#6272a4;font-size:10px;margin-bottom:10px;">42 nodes → 47 nodes (+5) &nbsp;|&nbsp; +3 nodes, 2 bbox changes, 1 component swap</div>
+            <!-- Diff hunks -->
+            <div style="background:#1a0a0a;border-left:3px solid #ff5555;padding:6px 10px;margin-bottom:6px;border-radius:0 4px 4px 0;">
+              <div style="color:#ff5555;font-size:10px;">&#9472; Removed: "OldButton" (INSTANCE)</div>
+              <div style="color:#6272a4;font-size:9px;">componentId: 45:1201 → removed</div>
+            </div>
+            <div style="background:#0a1a0a;border-left:3px solid #50fa7b;padding:6px 10px;margin-bottom:6px;border-radius:0 4px 4px 0;">
+              <div style="color:#50fa7b;font-size:10px;">&#43; Added: "NewCTA" (INSTANCE)</div>
+              <div style="color:#6272a4;font-size:9px;">componentId: 67:3405 | bbox: {x:24, y:580, w:327, h:48}</div>
+            </div>
+            <div style="background:#1a1a0a;border-left:3px solid #f1fa8c;padding:6px 10px;margin-bottom:6px;border-radius:0 4px 4px 0;">
+              <div style="color:#f1fa8c;font-size:10px;">&#916; bbox: "Header" 375&times;64 → 375&times;72</div>
+              <div style="color:#6272a4;font-size:9px;">dh: +8px</div>
+            </div>
+            <div style="background:#1a1a0a;border-left:3px solid #f1fa8c;padding:6px 10px;margin-bottom:6px;border-radius:0 4px 4px 0;">
+              <div style="color:#f1fa8c;font-size:10px;">&#8644; Component swap: "ActionButton"</div>
+              <div style="color:#6272a4;font-size:9px;">45:1201 → 67:3405</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A: Classic Sidebar + Detail</h3>
+      <p>Fork/VS Code style. Tree sidebar grouped by page with severity dots. Main panel shows the selected frame's diff hunks — removals, additions, changes styled like git diffs. Approve/Flag buttons top-right.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Kanban-ish grouped view -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1a1a2e;border-radius:8px;padding:16px;font-family:monospace;font-size:11px;color:#e0e0e0;min-height:320px;">
+        <!-- Top bar -->
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:#16213e;border-radius:6px;margin-bottom:12px;">
+          <div>
+            <span style="color:#8be9fd;">Profile</span>
+            <span style="opacity:0.5;margin:0 8px;">|</span>
+            <span style="opacity:0.6;">Apr 1 09:00 → Apr 1 16:40</span>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <span style="opacity:0.6;">Filter:</span>
+            <span style="background:#ff5555;padding:2px 8px;border-radius:10px;font-size:10px;color:white;">structural</span>
+            <span style="background:#f1fa8c;padding:2px 8px;border-radius:10px;font-size:10px;color:#1a1a2e;">cosmetic</span>
+            <span style="opacity:0.3;padding:2px 8px;border:1px solid #444;border-radius:10px;font-size:10px;">unchanged</span>
+          </div>
+        </div>
+        <!-- Scrollable list -->
+        <div style="display:flex;flex-direction:column;gap:8px;height:260px;overflow:hidden;">
+          <!-- Page group -->
+          <div style="color:#bd93f9;font-size:10px;text-transform:uppercase;letter-spacing:1px;">Security &mdash; 4 changes</div>
+          <!-- Frame card expanded -->
+          <div style="background:#0a0a1a;border-radius:6px;padding:10px;border-left:3px solid #ff5555;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <div>
+                <span style="font-weight:bold;color:white;">PIN Modal</span>
+                <span style="background:#ff5555;padding:1px 6px;border-radius:8px;font-size:9px;color:white;margin-left:6px;">structural</span>
+                <span style="color:#6272a4;margin-left:8px;font-size:10px;">+5 nodes, 2 bbox, 1 swap</span>
+              </div>
+              <div style="display:flex;gap:4px;">
+                <span style="background:#50fa7b;padding:2px 8px;border-radius:3px;font-size:9px;color:#1a1a2e;">&#10003;</span>
+                <span style="background:#ff5555;padding:2px 8px;border-radius:3px;font-size:9px;color:white;">&#10005;</span>
+              </div>
+            </div>
+            <div style="padding-left:8px;">
+              <div style="color:#ff5555;font-size:10px;margin-bottom:2px;">&#9472; "OldButton" (INSTANCE)</div>
+              <div style="color:#50fa7b;font-size:10px;margin-bottom:2px;">&#43; "NewCTA" (INSTANCE)</div>
+              <div style="color:#f1fa8c;font-size:10px;">&#916; "Header" bbox 375&times;64 → 375&times;72</div>
+            </div>
+          </div>
+          <!-- Frame card collapsed -->
+          <div style="background:#0a0a1a;border-radius:6px;padding:10px;border-left:3px solid #ff5555;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <span style="font-weight:bold;color:white;">Biometrics</span>
+              <span style="background:#ff5555;padding:1px 6px;border-radius:8px;font-size:9px;color:white;margin-left:6px;">structural</span>
+              <span style="color:#6272a4;margin-left:8px;font-size:10px;">+2 nodes, 1 visibility</span>
+            </div>
+            <span style="color:#6272a4;">&#9654;</span>
+          </div>
+          <div style="background:#0a0a1a;border-radius:6px;padding:10px;border-left:3px solid #f1fa8c;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <span style="font-weight:bold;color:white;">2FA Setup</span>
+              <span style="background:#f1fa8c;padding:1px 6px;border-radius:8px;font-size:9px;color:#1a1a2e;margin-left:6px;">cosmetic</span>
+              <span style="color:#6272a4;margin-left:8px;font-size:10px;">1 text, 2 fills</span>
+            </div>
+            <span style="color:#6272a4;">&#9654;</span>
+          </div>
+          <div style="color:#bd93f9;font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-top:4px;">Profile &mdash; 3 changes</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B: Inline Accordion List</h3>
+      <p>GitHub PR style. Single scrollable list grouped by page. Each frame is a collapsible card — click to expand diff hunks inline. Severity filter pills at top. Tighter, more scannable. No sidebar.</p>
+    </div>
+  </div>
+</div>

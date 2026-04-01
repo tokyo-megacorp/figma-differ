@@ -1,0 +1,235 @@
+<h2>Fig-Diff Dashboard v1 — Design Proposal</h2>
+<p class="subtitle">"What changed since the last time I looked?"</p>
+
+<div class="section">
+  <h3>Architecture</h3>
+  <div class="mockup">
+    <div class="mockup-header">How it works</div>
+    <div class="mockup-body" style="font-family:monospace;font-size:12px;padding:20px;background:#1a1a2e;color:#e0e0e0;">
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <div style="background:#16213e;padding:8px 14px;border-radius:6px;border:1px solid #0f3460;">
+          <div style="color:#8be9fd;font-size:10px;">SNAPSHOT</div>
+          <div>fig-diff snapshot-all</div>
+        </div>
+        <div style="color:#6272a4;">→</div>
+        <div style="background:#16213e;padding:8px 14px;border-radius:6px;border:1px solid #0f3460;">
+          <div style="color:#8be9fd;font-size:10px;">DIFF</div>
+          <div>fig-diff diff-all</div>
+        </div>
+        <div style="color:#6272a4;">→</div>
+        <div style="background:#16213e;padding:8px 14px;border-radius:6px;border:1px solid #0f3460;">
+          <div style="color:#8be9fd;font-size:10px;">COMPILE</div>
+          <div>compile-review.sh</div>
+        </div>
+        <div style="color:#6272a4;">→</div>
+        <div style="background:#16213e;padding:8px 14px;border-radius:6px;border:1px solid #0f3460;">
+          <div style="color:#f1fa8c;font-size:10px;">GENERATE</div>
+          <div>render-review.sh</div>
+        </div>
+        <div style="color:#6272a4;">→</div>
+        <div style="background:#0f3460;padding:8px 14px;border-radius:6px;border:2px solid #8be9fd;">
+          <div style="color:#50fa7b;font-size:10px;">OUTPUT</div>
+          <div style="color:white;font-weight:bold;">review.html</div>
+        </div>
+      </div>
+      <div style="margin-top:16px;color:#6272a4;font-size:11px;">
+        Single self-contained HTML file. review.json + index.json embedded as &lt;script&gt; data.<br>
+        Zero deps. Open in any browser. Drop in Slack. Works offline.
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Screen 1: Index (pick a diff)</h3>
+  <div class="mockup">
+    <div class="mockup-header">fig-diff review → opens review.html</div>
+    <div class="mockup-body" style="font-family:system-ui;font-size:12px;padding:0;background:#0d1117;color:#e6edf3;min-height:200px;">
+      <!-- Nav -->
+      <div style="padding:16px 24px;border-bottom:1px solid #21262d;display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="font-size:18px;font-weight:600;color:white;">fig-diff</span>
+          <span style="color:#8b949e;">Profile</span>
+        </div>
+        <span style="color:#8b949e;font-size:11px;">548 frames tracked</span>
+      </div>
+      <!-- Diff list -->
+      <div style="padding:16px 24px;">
+        <div style="color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:12px;">Recent Diffs</div>
+        <!-- Active diff -->
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:14px 16px;margin-bottom:8px;cursor:pointer;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <span style="color:white;font-weight:600;">Apr 1, 09:00 → 16:40</span>
+              <span style="color:#8b949e;margin-left:12px;">7h 40m</span>
+            </div>
+            <div style="display:flex;gap:6px;">
+              <span style="background:#da3633;padding:2px 8px;border-radius:12px;font-size:11px;color:white;">12</span>
+              <span style="background:#d29922;padding:2px 8px;border-radius:12px;font-size:11px;color:white;">8</span>
+            </div>
+          </div>
+          <div style="color:#8b949e;font-size:11px;margin-top:4px;">12 structural, 8 cosmetic, 528 unchanged</div>
+        </div>
+        <!-- Older diff -->
+        <div style="background:#161b22;border:1px solid #21262d;border-radius:8px;padding:14px 16px;margin-bottom:8px;opacity:0.7;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <span style="color:white;font-weight:600;">Mar 31, 14:00 → Apr 1, 09:00</span>
+              <span style="color:#8b949e;margin-left:12px;">19h</span>
+            </div>
+            <div style="display:flex;gap:6px;">
+              <span style="background:#da3633;padding:2px 8px;border-radius:12px;font-size:11px;color:white;">3</span>
+              <span style="background:#d29922;padding:2px 8px;border-radius:12px;font-size:11px;color:white;">14</span>
+            </div>
+          </div>
+          <div style="color:#8b949e;font-size:11px;margin-top:4px;">3 structural, 14 cosmetic, 531 unchanged</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Screen 2: Accordion View (scan all changes)</h3>
+  <div class="mockup">
+    <div class="mockup-header">Click a diff → accordion overview</div>
+    <div class="mockup-body" style="font-family:system-ui;font-size:12px;padding:0;background:#0d1117;color:#e6edf3;min-height:340px;">
+      <!-- Header bar -->
+      <div style="padding:12px 24px;border-bottom:1px solid #21262d;display:flex;justify-content:space-between;align-items:center;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="color:#8b949e;cursor:pointer;">← Back</span>
+          <span style="color:#21262d;">|</span>
+          <span style="font-weight:600;color:white;">Apr 1, 09:00 → 16:40</span>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <span style="background:#da3633;padding:3px 10px;border-radius:12px;font-size:11px;color:white;cursor:pointer;">12 structural</span>
+          <span style="background:#d29922;padding:3px 10px;border-radius:12px;font-size:11px;color:white;cursor:pointer;">8 cosmetic</span>
+          <span style="background:#21262d;padding:3px 10px;border-radius:12px;font-size:11px;color:#8b949e;cursor:pointer;">528 unchanged</span>
+        </div>
+      </div>
+      <!-- Frame list -->
+      <div style="padding:16px 24px;">
+        <!-- Page group -->
+        <div style="color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;display:flex;justify-content:space-between;">
+          <span>Security — 4 changes</span>
+          <span>4 of 28 frames</span>
+        </div>
+        <!-- Expanded frame -->
+        <div style="background:#161b22;border:1px solid #30363d;border-radius:8px;margin-bottom:6px;overflow:hidden;">
+          <div style="padding:12px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <span style="color:#da3633;">●</span>
+              <span style="font-weight:600;color:white;">PIN Modal</span>
+              <span style="color:#8b949e;font-size:11px;">42 → 47 nodes (+5)</span>
+            </div>
+            <span style="color:#8b949e;font-size:11px;">+3 nodes, 2 bbox, 1 swap ▾</span>
+          </div>
+          <div style="padding:0 16px 12px;border-top:1px solid #21262d;padding-top:10px;">
+            <div style="display:flex;flex-direction:column;gap:4px;font-family:monospace;font-size:11px;">
+              <div style="color:#f85149;padding:3px 8px;background:#3d1214;border-radius:4px;">− "OldButton" (INSTANCE) — componentId: 45:1201</div>
+              <div style="color:#3fb950;padding:3px 8px;background:#12261e;border-radius:4px;">+ "NewCTA" (INSTANCE) — componentId: 67:3405</div>
+              <div style="color:#d29922;padding:3px 8px;background:#2d2000;border-radius:4px;">△ "Header" bbox: 375×64 → 375×72 (dh: +8)</div>
+              <div style="color:#d29922;padding:3px 8px;background:#2d2000;border-radius:4px;">⇄ "ActionButton" component: 45:1201 → 67:3405</div>
+              <div style="color:#d29922;padding:3px 8px;background:#2d2000;border-radius:4px;">△ "Container" bbox: 375×600 → 375×640 (dh: +40)</div>
+            </div>
+          </div>
+        </div>
+        <!-- Collapsed frames -->
+        <div style="background:#161b22;border:1px solid #21262d;border-radius:8px;padding:12px 16px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="color:#da3633;">●</span>
+            <span style="font-weight:600;color:white;">Biometrics</span>
+            <span style="color:#8b949e;font-size:11px;">38 → 40 nodes (+2)</span>
+          </div>
+          <span style="color:#8b949e;font-size:11px;">+2 nodes, 1 visibility ▸</span>
+        </div>
+        <div style="background:#161b22;border:1px solid #21262d;border-radius:8px;padding:12px 16px;margin-bottom:6px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="color:#d29922;">●</span>
+            <span style="font-weight:600;color:white;">2FA Setup</span>
+            <span style="color:#8b949e;font-size:11px;">25 → 25 nodes</span>
+          </div>
+          <span style="color:#8b949e;font-size:11px;">1 text, 2 fills ▸</span>
+        </div>
+        <div style="background:#161b22;border:1px solid #21262d;border-radius:8px;padding:12px 16px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="color:#da3633;">●</span>
+            <span style="font-weight:600;color:white;">Recovery</span>
+            <span style="color:#8b949e;font-size:11px;">51 → 48 nodes (−3)</span>
+          </div>
+          <span style="color:#8b949e;font-size:11px;">−3 nodes, 1 constraint ▸</span>
+        </div>
+        <!-- Next page group -->
+        <div style="color:#8b949e;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;display:flex;justify-content:space-between;">
+          <span>Profile — 3 changes</span>
+          <span>3 of 42 frames</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Screen 3: Detail View (deep inspect)</h3>
+  <div class="mockup">
+    <div class="mockup-header">Click a frame → sidebar + full diff</div>
+    <div class="mockup-body" style="font-family:system-ui;font-size:12px;padding:0;background:#0d1117;color:#e6edf3;min-height:320px;">
+      <div style="display:flex;height:320px;">
+        <!-- Sidebar -->
+        <div style="width:220px;background:#161b22;border-right:1px solid #21262d;padding:12px;overflow-y:auto;">
+          <div style="color:#8b949e;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Security</div>
+          <div style="padding:6px 8px;border-radius:6px;margin-bottom:2px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <span style="color:#da3633;font-size:8px;">●</span><span style="color:#e6edf3;">PIN Modal</span>
+          </div>
+          <div style="padding:6px 8px;border-radius:6px;margin-bottom:2px;display:flex;align-items:center;gap:6px;cursor:pointer;background:#1f6feb22;">
+            <span style="color:#da3633;font-size:8px;">●</span><span style="color:white;font-weight:600;">Biometrics</span>
+          </div>
+          <div style="padding:6px 8px;border-radius:6px;margin-bottom:2px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <span style="color:#d29922;font-size:8px;">●</span><span style="color:#e6edf3;">2FA Setup</span>
+          </div>
+          <div style="padding:6px 8px;border-radius:6px;margin-bottom:8px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <span style="color:#da3633;font-size:8px;">●</span><span style="color:#e6edf3;">Recovery</span>
+          </div>
+          <div style="color:#8b949e;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px;">Profile</div>
+          <div style="padding:6px 8px;border-radius:6px;margin-bottom:2px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <span style="color:#d29922;font-size:8px;">●</span><span style="color:#e6edf3;">Settings</span>
+          </div>
+          <div style="padding:6px 8px;border-radius:6px;margin-bottom:2px;display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <span style="color:#da3633;font-size:8px;">●</span><span style="color:#e6edf3;">Avatar</span>
+          </div>
+        </div>
+        <!-- Detail panel -->
+        <div style="flex:1;padding:16px 24px;overflow-y:auto;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+            <span style="font-size:16px;font-weight:600;color:white;">Biometrics</span>
+            <span style="background:#da3633;padding:2px 10px;border-radius:12px;font-size:11px;color:white;">structural</span>
+          </div>
+          <div style="color:#8b949e;font-size:11px;margin-bottom:16px;">38 → 40 nodes (+2) &nbsp;·&nbsp; Security page &nbsp;·&nbsp; +2 nodes, 1 visibility toggle</div>
+          <!-- Change groups -->
+          <div style="margin-bottom:14px;">
+            <div style="color:#8b949e;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Added Nodes (2)</div>
+            <div style="font-family:monospace;font-size:11px;">
+              <div style="color:#3fb950;padding:6px 10px;background:#12261e;border-radius:4px;margin-bottom:3px;">+ "FaceID Icon" <span style="color:#8b949e;">VECTOR</span></div>
+              <div style="color:#3fb950;padding:6px 10px;background:#12261e;border-radius:4px;">+ "Biometric Toggle" <span style="color:#8b949e;">INSTANCE → 89:2201</span></div>
+            </div>
+          </div>
+          <div style="margin-bottom:14px;">
+            <div style="color:#8b949e;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Visibility Changes (1)</div>
+            <div style="font-family:monospace;font-size:11px;">
+              <div style="color:#d29922;padding:6px 10px;background:#2d2000;border-radius:4px;">"Legacy PIN Link" <span style="color:#8b949e;">visible: true → false</span></div>
+            </div>
+          </div>
+          <div>
+            <div style="color:#8b949e;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Bbox Changes (0)</div>
+            <div style="color:#8b949e;font-style:italic;font-size:11px;">No bounding box changes</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Does this feel right?</h3>
+  <p>Three screens: Index → Accordion → Detail. Dark theme, GitHub-ish. Pure viewer — no triage, no approval. "What changed since I last looked?"</p>
+</div>

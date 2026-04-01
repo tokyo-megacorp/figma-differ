@@ -1,0 +1,13 @@
+# Runtime snapshot data lives at ~/.figma-differ/ (not in this repo)
+data/snapshots/
+
+# Adversarial review experiment runs
+experiments/
+
+# Local config
+.env
+.claude/*.local.md
+.claude-plugin/marketplace.json
+
+# macOS
+.DS_Store

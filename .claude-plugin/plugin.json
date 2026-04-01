@@ -1,0 +1,15 @@
+{
+  "name": "figma-differ",
+  "version": "0.1.0",
+  "description": "Snapshot Figma canvases, diff design changes, compare to implementation, and notify Slack.",
+  "author": {
+    "name": "Pedro Almeida",
+    "url": "https://github.com/ipedro"
+  },
+  "homepage": "https://github.com/ipedro/figma-differ",
+  "repository": "https://github.com/ipedro/figma-differ",
+  "license": "MIT",
+  "keywords": ["figma", "design", "diff", "slack", "design-review"],
+  "commands": "./commands/",
+  "skills": "./skills/"
+}
