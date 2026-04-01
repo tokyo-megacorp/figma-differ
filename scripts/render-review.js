@@ -714,9 +714,145 @@ function openDetail(nodeId) {
   setupLazyImages();
 }
 
-// Placeholder — filled in Task 6
 function renderDetail(nodeId) {
-  app.innerHTML = '<p style="padding:24px">Detail view — Task 6</p>';
+  state.screen = 'detail';
+  const review = DATA.reviews[state.reviewIdx];
+  const diffs = DATA.diffs[review.diffRange] || {};
+  const decisions = review.decisions.filter(d => state.activeFilters.has(d.severity));
+  const current = review.decisions.find(d => d.nodeId === nodeId);
+  const diff = diffs[nodeId];
+
+  if (!current) { renderAccordion(); return; }
+
+  // Group sidebar items by page
+  const pages = {};
+  for (const d of decisions) {
+    if (!pages[d.page]) pages[d.page] = [];
+    pages[d.page].push(d);
+  }
+
+  let html = '<div class="topbar">';
+  html += '<div class="topbar-left">';
+  html += '<button class="back-btn" onclick="state.screen=\\'accordion\\';renderAccordion()">← Back</button>';
+  html += '<span style="color:var(--border)">|</span>';
+  html += '<span style="font-weight:600">' + escapeHtml(current.nodeName) + '</span>';
+  html += '</div></div>';
+
+  html += '<div class="detail-layout">';
+
+  // Sidebar
+  html += '<div class="detail-sidebar">';
+  for (const page of Object.keys(pages).sort()) {
+    html += '<div class="section-label" style="margin:8px 0 6px">' + escapeHtml(page) + '</div>';
+    for (const d of pages[page]) {
+      const active = d.nodeId === nodeId;
+      html += '<div class="sidebar-item' + (active ? ' active' : '') + '" onclick="openDetail(\\'' + d.nodeId + '\\')">';
+      html += '<span class="severity-dot severity-dot-' + d.severity + '"></span>';
+      html += '<span>' + escapeHtml(d.nodeName) + '</span>';
+      html += '</div>';
+    }
+  }
+  html += '</div>';
+
+  // Main panel
+  html += '<div class="detail-main">';
+  html += '<div style="display:flex;justify-content:space-between;align-items:center">';
+  html += '<span class="detail-title">' + escapeHtml(current.nodeName) + '</span>';
+  html += '<span class="badge badge-' + current.severity + '">' + current.severity + '</span>';
+  html += '</div>';
+  html += '<div class="detail-stats">' + current.nodeCountBefore + ' → ' + current.nodeCountAfter + ' nodes (' + (current.nodeCountDelta >= 0 ? '+' : '') + current.nodeCountDelta + ') · ' + escapeHtml(current.page) + ' · ' + escapeHtml(current.summary) + '</div>';
+
+  // Lazy image
+  const imageUrl = DATA.imageUrls[nodeId];
+  if (imageUrl) {
+    html += '<div class="lazy-img-container" data-src="' + imageUrl + '">';
+    html += '<div class="img-placeholder">Loading preview...</div></div>';
+  }
+
+  // Change groups from structural diff
+  if (diff && diff.changes) {
+    const groups = [
+      { key: 'addedNodes', label: 'Added Nodes', type: 'add' },
+      { key: 'removedNodes', label: 'Removed Nodes', type: 'remove' },
+      { key: 'componentSwaps', label: 'Component Swaps', type: 'change' },
+      { key: 'bboxChanges', label: 'Bounding Box Changes', type: 'change' },
+      { key: 'visibilityChanges', label: 'Visibility Changes', type: 'change' },
+      { key: 'constraintChanges', label: 'Constraint Changes', type: 'change' },
+      { key: 'layoutChanges', label: 'Layout Changes', type: 'change' },
+      { key: 'textChanges', label: 'Text Changes', type: 'change' },
+      { key: 'fillChanges', label: 'Fill Changes', type: 'change' },
+      { key: 'strokeChanges', label: 'Stroke Changes', type: 'change' },
+      { key: 'fontChanges', label: 'Font Changes', type: 'change' },
+      { key: 'opacityChanges', label: 'Opacity Changes', type: 'change' },
+      { key: 'effectChanges', label: 'Effect Changes', type: 'change' },
+    ];
+
+    for (const g of groups) {
+      const items = diff.changes[g.key] || [];
+      if (items.length === 0) continue;
+
+      html += '<div class="change-group">';
+      html += '<div class="change-group-header">' + g.label + ' (' + items.length + ')</div>';
+
+      for (const item of items) {
+        html += renderDetailHunk(g.key, item, g.type);
+      }
+      html += '</div>';
+    }
+  } else {
+    html += '<div class="diff-meta" style="margin-top:16px">No detailed structural diff available for this frame.</div>';
+  }
+
+  html += '</div>'; // detail-main
+  html += '</div>'; // detail-layout
+  app.innerHTML = html;
+}
+
+function renderDetailHunk(groupKey, item, type) {
+  const cls = 'diff-hunk diff-' + type;
+  const name = escapeHtml(item.name || item.id || '');
+
+  switch (groupKey) {
+    case 'addedNodes':
+      return '<div class="' + cls + '">+ "' + name + '" <span class="diff-meta">' + escapeHtml(item.type) + '</span></div>';
+    case 'removedNodes':
+      return '<div class="' + cls + '">\u2212 "' + name + '" <span class="diff-meta">' + escapeHtml(item.type) + '</span></div>';
+    case 'componentSwaps':
+      return '<div class="' + cls + '">\u21c4 "' + name + '" <span class="diff-meta">' + escapeHtml(String(item.before)) + ' \u2192 ' + escapeHtml(String(item.after)) + '</span></div>';
+    case 'bboxChanges': {
+      const b = item.before || {};
+      const a = item.after || {};
+      let s = '<div class="' + cls + '">\u25b3 "' + name + '" <span class="diff-meta">' + (b.w||'?') + '\u00d7' + (b.h||'?') + ' \u2192 ' + (a.w||'?') + '\u00d7' + (a.h||'?');
+      if (item.dw != null) s += ' (dw: ' + (item.dw>0?'+':'') + Math.round(item.dw) + ', dh: ' + (item.dh>0?'+':'') + Math.round(item.dh) + ')';
+      return s + '</span></div>';
+    }
+    case 'visibilityChanges':
+      return '<div class="' + cls + '">"' + name + '" <span class="diff-meta">visible: ' + item.before + ' \u2192 ' + item.after + '</span></div>';
+    case 'constraintChanges':
+      return '<div class="' + cls + '">"' + name + '" <span class="diff-meta">' + JSON.stringify(item.before) + ' \u2192 ' + JSON.stringify(item.after) + '</span></div>';
+    case 'layoutChanges': {
+      const b = item.before || {};
+      const a = item.after || {};
+      return '<div class="' + cls + '">"' + name + '" <span class="diff-meta">layout: ' + (b.layoutMode||'none') + ' \u2192 ' + (a.layoutMode||'none') + ', spacing: ' + (b.spacing||0) + ' \u2192 ' + (a.spacing||0) + '</span></div>';
+    }
+    case 'textChanges':
+      return '<div class="' + cls + '">"' + name + '" <span class="diff-meta">"' + escapeHtml(String(item.before).slice(0,80)) + '" \u2192 "' + escapeHtml(String(item.after).slice(0,80)) + '"</span></div>';
+    case 'fillChanges':
+      return '<div class="' + cls + '">"' + name + '" <span class="diff-meta">' + (item.added||[]).length + ' added, ' + (item.removed||[]).length + ' removed</span></div>';
+    case 'strokeChanges':
+      return '<div class="' + cls + '">"' + name + '" <span class="diff-meta">' + (item.added||[]).length + ' added, ' + (item.removed||[]).length + ' removed</span></div>';
+    case 'fontChanges': {
+      const b = item.before || {};
+      const a = item.after || {};
+      return '<div class="' + cls + '">"' + name + '" <span class="diff-meta">' + (b.fontFamily||'') + ' ' + (b.fontSize||'') + '/' + (b.fontWeight||'') + ' \u2192 ' + (a.fontFamily||'') + ' ' + (a.fontSize||'') + '/' + (a.fontWeight||'') + '</span></div>';
+    }
+    case 'opacityChanges':
+      return '<div class="' + cls + '">"' + name + '" <span class="diff-meta">opacity: ' + item.before + ' \u2192 ' + item.after + '</span></div>';
+    case 'effectChanges':
+      return '<div class="' + cls + '">"' + name + '" <span class="diff-meta">' + (item.added||[]).length + ' added, ' + (item.removed||[]).length + ' removed</span></div>';
+    default:
+      return '<div class="' + cls + '">"' + name + '"</div>';
+  }
 }
 
 // ── Boot ──────────────────────────────────────────────────────────────────
