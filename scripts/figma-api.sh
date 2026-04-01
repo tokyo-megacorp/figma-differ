@@ -247,6 +247,51 @@ fetch_batch_images() {
   if [[ $failed -gt 0 ]]; then return 1; fi
 }
 
+fetch_image_urls() {
+  local file_key="$1" node_ids="$2"
+  _check_deps
+  _check_token
+
+  local ids result_json="{}"
+  IFS=',' read -ra ids <<< "$node_ids"
+
+  # Chunk into batches of 50 (URL-only is lighter than render, bigger batches OK)
+  local chunk=""
+  local chunk_count=0
+  for id in "${ids[@]}"; do
+    if [[ -n "$chunk" ]]; then chunk="${chunk},${id}"; else chunk="$id"; fi
+    chunk_count=$((chunk_count + 1))
+
+    if [[ $chunk_count -ge 50 ]]; then
+      local encoded_chunk
+      encoded_chunk=$(echo "$chunk" | sed 's/:/%3A/g')
+      local response
+      response=$(_figma_get "/images/${file_key}?ids=${encoded_chunk}&format=png&scale=2") || true
+      if [[ -n "$response" ]]; then
+        local chunk_urls
+        chunk_urls=$(echo "$response" | jq '.images // {}')
+        result_json=$(echo "$result_json" "$chunk_urls" | jq -s '.[0] * .[1]')
+      fi
+      chunk=""
+      chunk_count=0
+    fi
+  done
+  # Final partial chunk
+  if [[ -n "$chunk" ]]; then
+    local encoded_chunk
+    encoded_chunk=$(echo "$chunk" | sed 's/:/%3A/g')
+    local response
+    response=$(_figma_get "/images/${file_key}?ids=${encoded_chunk}&format=png&scale=2") || true
+    if [[ -n "$response" ]]; then
+      local chunk_urls
+      chunk_urls=$(echo "$response" | jq '.images // {}')
+      result_json=$(echo "$result_json" "$chunk_urls" | jq -s '.[0] * .[1]')
+    fi
+  fi
+
+  echo "$result_json"
+}
+
 # Dispatch
 command="${1:-}"
 shift || true
@@ -257,8 +302,9 @@ case "$command" in
   fetch_comments)     fetch_comments "$@" ;;
   fetch_file_tree)    fetch_file_tree "$@" ;;
   fetch_batch_images) fetch_batch_images "$@" ;;
+  fetch_image_urls)  fetch_image_urls "$@" ;;
   *)
-    echo "Usage: figma-api.sh <fetch_node_json|fetch_node_png|fetch_comments|fetch_file_tree|fetch_batch_images> [args]" >&2
+    echo "Usage: figma-api.sh <fetch_node_json|fetch_node_png|fetch_comments|fetch_file_tree|fetch_batch_images|fetch_image_urls> [args]" >&2
     exit 1
     ;;
 esac
