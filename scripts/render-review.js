@@ -474,7 +474,95 @@ function generateHtml(data) {
 }
 
 function generateAppJs() {
-  return `document.getElementById('app').innerHTML = '<pre>' + JSON.stringify(DATA, null, 2).slice(0, 2000) + '...</pre>';`
+  return `
+// ── State ─────────────────────────────────────────────────────────────────
+const state = {
+  screen: 'index',       // 'index' | 'accordion' | 'detail'
+  reviewIdx: null,        // which review is selected
+  activeFilters: new Set(['structural', 'cosmetic']),
+  expandedFrames: new Set(),
+  detailNodeId: null,
+  focusIdx: -1,
+};
+
+const app = document.getElementById('app');
+
+// ── Helpers ───────────────────────────────────────────────────────────────
+function formatTimestamp(ts) {
+  // "20260401T164047Z" → "Apr 1, 16:40"
+  if (!ts || ts.length < 15) return ts;
+  const y = ts.slice(0,4), m = ts.slice(4,6), d = ts.slice(6,8);
+  const h = ts.slice(9,11), min = ts.slice(11,13);
+  const date = new Date(y + '-' + m + '-' + d + 'T' + h + ':' + min + ':00Z');
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' +
+         date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function severityClass(sev) {
+  return 'severity-' + (sev || 'unchanged');
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// ── Index Screen ──────────────────────────────────────────────────────────
+function renderIndex() {
+  state.screen = 'index';
+  const idx = DATA.index;
+  const reviews = DATA.reviews;
+
+  let html = '<div class="header">';
+  html += '<div><span class="header-title">fig-diff</span> ';
+  html += '<span class="header-meta">' + escapeHtml(idx.fileName || idx.fileKey) + '</span></div>';
+  html += '<span class="header-meta">' + idx.frames.length + ' frames tracked</span>';
+  html += '</div>';
+  html += '<div class="content">';
+  html += '<div class="section-label">Recent Diffs</div>';
+
+  if (reviews.length === 0) {
+    html += '<p style="color:var(--text-secondary)">No diffs found. Run fig-diff diff-all first.</p>';
+  }
+
+  reviews.forEach((r, i) => {
+    const s = r.summary;
+    html += '<div class="diff-card" onclick="openReview(' + i + ')">';
+    html += '<div class="diff-card-header">';
+    html += '<div><span class="diff-card-title">' + formatTimestamp(r.baseline) + ' → ' + formatTimestamp(r.current) + '</span></div>';
+    html += '<div style="display:flex;gap:6px">';
+    if (s.structural > 0) html += '<span class="badge badge-structural">' + s.structural + '</span>';
+    if (s.cosmetic > 0) html += '<span class="badge badge-cosmetic">' + s.cosmetic + '</span>';
+    html += '</div></div>';
+    html += '<div class="diff-card-meta">' + s.structural + ' structural, ' + s.cosmetic + ' cosmetic, ' + s.unchanged + ' unchanged</div>';
+    html += '</div>';
+  });
+
+  html += '</div>';
+  app.innerHTML = html;
+}
+
+function openReview(idx) {
+  state.reviewIdx = idx;
+  state.expandedFrames.clear();
+  state.focusIdx = -1;
+  renderAccordion();
+}
+
+// Placeholder — filled in Task 5
+function renderAccordion() {
+  app.innerHTML = '<p style="padding:24px">Accordion view — Task 5</p>';
+}
+
+// Placeholder — filled in Task 6
+function renderDetail(nodeId) {
+  app.innerHTML = '<p style="padding:24px">Detail view — Task 6</p>';
+}
+
+// ── Boot ──────────────────────────────────────────────────────────────────
+renderIndex();
+`
 }
 
 main()
