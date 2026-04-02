@@ -1066,9 +1066,8 @@ function renderComments() {
   html += '<div class="content">';
 
   function renderCommentItem(c, dimmed) {
-    const opacity = dimmed ? 'opacity:0.5;' : '';
-    let h = '<div style="display:flex;gap:10px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);' + opacity + '">';
-    h += '<div style="width:10px;height:10px;border-radius:2px;background:var(--border);border:1px dashed var(--text-secondary);flex-shrink:0;margin-top:4px"></div>';
+    let h = '<div class="comment-item' + (dimmed ? ' dimmed' : '') + '">';
+    h += '<div class="comment-dot"></div>';
     h += '<div style="flex:1">';
     h += '<div style="display:flex;justify-content:space-between;align-items:baseline">';
     h += '<div><span style="font-weight:500">' + escapeHtml(c.user) + '</span>';
@@ -1076,7 +1075,7 @@ function renderComments() {
     h += '</div>';
     h += '<span style="color:var(--text-secondary);font-size:11px">' + formatIsoDate(c.createdAt) + '</span>';
     h += '</div>';
-    h += '<p style="color:' + (dimmed ? 'var(--text-secondary)' : 'var(--text-primary)') + ';margin:4px 0 0;font-size:13px">"' + escapeHtml(c.message) + '"</p>';
+    h += '<p class="comment-message" style="color:' + (dimmed ? 'var(--text-secondary)' : 'var(--text-primary)') + '">"' + escapeHtml(c.message) + '"</p>';
     h += '</div></div>';
     return h;
   }

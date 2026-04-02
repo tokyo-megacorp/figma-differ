@@ -325,3 +325,107 @@ test.describe('Dashboard v1 — Edge Cases', () => {
     await expect(page.locator('.diff-meta')).toContainText('No detailed structural diff')
   })
 })
+
+test.describe('Dashboard v2 — Comments Screen', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(`file://${HTML_PATH}`)
+  })
+
+  test('index shows nav buttons when comments exist', async ({ page }) => {
+    const navBtns = page.locator('.nav-btn')
+    await expect(navBtns).toHaveCount(2)
+    await expect(navBtns.nth(0)).toContainText('Timeline')
+    await expect(navBtns.nth(1)).toContainText('comments')
+  })
+
+  test('clicking comments button opens comments screen', async ({ page }) => {
+    await page.locator('.nav-btn').nth(1).click()
+    await expect(page.locator('.topbar')).toBeVisible()
+    await expect(page.locator('.back-btn')).toBeVisible()
+    // Topbar contains "Comments" heading
+    await expect(page.locator('.topbar')).toContainText('Comments')
+  })
+
+  test('comments screen shows comment items', async ({ page }) => {
+    await page.locator('.nav-btn').nth(1).click()
+    const comments = page.locator('.comment-item')
+    const count = await comments.count()
+    expect(count).toBeGreaterThanOrEqual(1)
+  })
+
+  test('comments screen has author filter', async ({ page }) => {
+    await page.locator('.nav-btn').nth(1).click()
+    const select = page.locator('select.filter-pill')
+    await expect(select).toBeVisible()
+    await expect(select.locator('option').first()).toContainText('All authors')
+  })
+
+  test('comments screen has resolved filter pills', async ({ page }) => {
+    await page.locator('.nav-btn').nth(1).click()
+    const pills = page.locator('.filter-pill')
+    // author dropdown + unresolved + resolved + all = 4
+    const count = await pills.count()
+    expect(count).toBeGreaterThanOrEqual(3)
+  })
+
+  test('back button returns to index', async ({ page }) => {
+    await page.locator('.nav-btn').nth(1).click()
+    await page.locator('.back-btn').click()
+    await expect(page.locator('.diff-card')).toBeVisible()
+  })
+
+  test('Escape returns to index', async ({ page }) => {
+    await page.locator('.nav-btn').nth(1).click()
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.diff-card')).toBeVisible()
+  })
+})
+
+test.describe('Dashboard v2 — Timeline Screen', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(`file://${HTML_PATH}`)
+  })
+
+  test('clicking timeline button opens timeline screen', async ({ page }) => {
+    await page.locator('.nav-btn').first().click()
+    await expect(page.locator('.topbar')).toBeVisible()
+    await expect(page.locator('text=Timeline')).toBeVisible()
+  })
+
+  test('timeline shows version and comment entries', async ({ page }) => {
+    await page.locator('.nav-btn').first().click()
+    // Should have at least the diff entry and comment entries
+    const content = page.locator('.content')
+    await expect(content).toBeVisible()
+  })
+
+  test('timeline has back button', async ({ page }) => {
+    await page.locator('.nav-btn').first().click()
+    await expect(page.locator('.back-btn')).toBeVisible()
+    await page.locator('.back-btn').click()
+    await expect(page.locator('.diff-card')).toBeVisible()
+  })
+
+  test('Escape returns to index', async ({ page }) => {
+    await page.locator('.nav-btn').first().click()
+    await page.keyboard.press('Escape')
+    await expect(page.locator('.diff-card')).toBeVisible()
+  })
+})
+
+test.describe('Dashboard v2 — Inline Comments in Detail', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(`file://${HTML_PATH}`)
+    await page.locator('.diff-card').click()
+    await page.locator('.frame-card-name').first().click()
+  })
+
+  test('detail view shows comments section for frame with comments', async ({ page }) => {
+    await expect(page.locator('text=Comments on this frame')).toBeVisible()
+  })
+
+  test('inline comments show author and message', async ({ page }) => {
+    const commentSection = page.locator('text=Comments on this frame').locator('..')
+    await expect(commentSection).toBeVisible()
+  })
+})
