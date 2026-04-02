@@ -103,11 +103,13 @@ _figma_get() {
 }
 
 fetch_node_json() {
-  local file_key="$1" node_id="$2"
+  local file_key="$1" node_id="$2" version="${3:-}"
   _check_deps
   _check_token
   local encoded_id=$(_url_encode_node_id "$node_id")
-  _figma_get "/files/${file_key}/nodes?ids=${encoded_id}"
+  local url="/files/${file_key}/nodes?ids=${encoded_id}"
+  [[ -n "$version" ]] && url="${url}&version=${version}"
+  _figma_get "$url"
 }
 
 fetch_node_png() {
@@ -145,6 +147,14 @@ fetch_comments() {
   _check_deps
   _check_token
   _figma_get "/files/${file_key}/comments"
+}
+
+fetch_versions() {
+  local file_key="$1"
+  local page_size="${2:-30}"
+  _check_deps
+  _check_token
+  _figma_get "/files/${file_key}/versions?page_size=${page_size}"
 }
 
 fetch_file_tree() {
@@ -303,8 +313,9 @@ case "$command" in
   fetch_file_tree)    fetch_file_tree "$@" ;;
   fetch_batch_images) fetch_batch_images "$@" ;;
   fetch_image_urls)  fetch_image_urls "$@" ;;
+  fetch_versions)    fetch_versions "$@" ;;
   *)
-    echo "Usage: figma-api.sh <fetch_node_json|fetch_node_png|fetch_comments|fetch_file_tree|fetch_batch_images|fetch_image_urls> [args]" >&2
+    echo "Usage: figma-api.sh <fetch_node_json|fetch_node_png|fetch_comments|fetch_file_tree|fetch_batch_images|fetch_image_urls|fetch_versions> [args]" >&2
     exit 1
     ;;
 esac
