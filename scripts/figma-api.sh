@@ -257,6 +257,82 @@ fetch_batch_images() {
   if [[ $failed -gt 0 ]]; then return 1; fi
 }
 
+_split_batch_response() {
+  # Split a batch nodes response file into per-node files using jq on disk
+  local resp_file="$1" output_dir="$2"
+  shift 2
+  local chunk_ids=("$@")
+  local ok=0 fail=0
+
+  for nid in "${chunk_ids[@]}"; do
+    local safe="${nid//:/_}"
+    jq --arg id "$nid" '.nodes[$id] // empty' "$resp_file" > "${output_dir}/${safe}.json" 2>/dev/null
+    if [[ -s "${output_dir}/${safe}.json" ]]; then
+      ok=$((ok + 1))
+    else
+      rm -f "${output_dir}/${safe}.json"
+      fail=$((fail + 1))
+    fi
+  done
+  echo "$ok $fail"
+}
+
+fetch_batch_nodes() {
+  local file_key="$1" node_ids="$2" output_dir="$3"
+  _check_deps
+  _check_token
+
+  mkdir -p "$output_dir"
+  local ids
+  IFS=',' read -ra ids <<< "$node_ids"
+
+  local success=0 failed=0
+  local resp_file
+  resp_file=$(mktemp)
+  trap "rm -f '$resp_file'" RETURN
+
+  # Chunk into batches of 10 (responses can be 100MB+, pipe to file not variable)
+  local chunk=""
+  local chunk_count=0
+  local chunk_ids=()
+  for id in "${ids[@]}"; do
+    local encoded=$(_url_encode_node_id "$id")
+    if [[ -n "$chunk" ]]; then chunk="${chunk},${encoded}"; else chunk="$encoded"; fi
+    chunk_ids+=("$id")
+    chunk_count=$((chunk_count + 1))
+
+    if [[ $chunk_count -ge 10 ]]; then
+      if _figma_get "/files/${file_key}/nodes?ids=${chunk}" > "$resp_file" 2>/dev/null; then
+        local result
+        result=$(_split_batch_response "$resp_file" "$output_dir" "${chunk_ids[@]}")
+        success=$((success + ${result%% *}))
+        failed=$((failed + ${result##* }))
+      else
+        echo "ERROR: batch node fetch failed for chunk" >&2
+        failed=$((failed + ${#chunk_ids[@]}))
+      fi
+      chunk=""
+      chunk_count=0
+      chunk_ids=()
+    fi
+  done
+  # Final partial chunk
+  if [[ -n "$chunk" ]]; then
+    if _figma_get "/files/${file_key}/nodes?ids=${chunk}" > "$resp_file" 2>/dev/null; then
+      local result
+      result=$(_split_batch_response "$resp_file" "$output_dir" "${chunk_ids[@]}")
+      success=$((success + ${result%% *}))
+      failed=$((failed + ${result##* }))
+    else
+      echo "ERROR: batch node fetch failed for chunk" >&2
+      failed=$((failed + ${#chunk_ids[@]}))
+    fi
+  fi
+
+  echo "Batch nodes: ${success} saved, ${failed} failed" >&2
+  if [[ $failed -gt 0 ]]; then return 1; fi
+}
+
 fetch_image_urls() {
   local file_key="$1" node_ids="$2"
   _check_deps
@@ -311,11 +387,12 @@ case "$command" in
   fetch_node_png)     fetch_node_png "$@" ;;
   fetch_comments)     fetch_comments "$@" ;;
   fetch_file_tree)    fetch_file_tree "$@" ;;
+  fetch_batch_nodes)  fetch_batch_nodes "$@" ;;
   fetch_batch_images) fetch_batch_images "$@" ;;
   fetch_image_urls)  fetch_image_urls "$@" ;;
   fetch_versions)    fetch_versions "$@" ;;
   *)
-    echo "Usage: figma-api.sh <fetch_node_json|fetch_node_png|fetch_comments|fetch_file_tree|fetch_batch_images|fetch_image_urls|fetch_versions> [args]" >&2
+    echo "Usage: figma-api.sh <fetch_node_json|fetch_node_png|fetch_comments|fetch_file_tree|fetch_batch_nodes|fetch_batch_images|fetch_image_urls|fetch_versions> [args]" >&2
     exit 1
     ;;
 esac

@@ -28,8 +28,11 @@ if (!beforePath || !afterPath || !diffPath) {
 
 function readNodeJson(path) {
   try {
-    const raw = fs.readFileSync(path, 'utf8')
+    let raw = fs.readFileSync(path, 'utf8')
     if (!raw || raw.trim().length === 0) throw new Error('empty file')
+    // Strip leading non-JSON garbage (e.g. "out=''\n" from buggy snapshots)
+    const jsonStart = raw.indexOf('{')
+    if (jsonStart > 0) raw = raw.slice(jsonStart)
     const parsed = JSON.parse(raw)
     // Figma node endpoint: { nodes: { "ID": { document: {...} } } }
     const nodeId = Object.keys(parsed.nodes || {})[0]
