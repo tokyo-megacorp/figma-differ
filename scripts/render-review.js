@@ -21,6 +21,7 @@ const os = require('os')
 const args = process.argv.slice(2)
 const fileKey = args.find(a => !a.startsWith('--'))
 const noImages = args.includes('--no-images')
+const noComments = args.includes('--no-comments')
 const noOpen = args.includes('--no-open')
 const outputFlag = args.indexOf('--output')
 const outputPath = outputFlag !== -1 ? args[outputFlag + 1] : null
@@ -92,6 +93,33 @@ function fetchImageUrls(nodeIds) {
   }
 }
 
+// ── Fetch comments via figma-api.sh ────────────────────────────────────────
+function fetchComments() {
+  const scriptDir = path.dirname(process.argv[1])
+  const apiScript = path.join(scriptDir, 'figma-api.sh')
+  try {
+    const result = execSync(
+      `bash "${apiScript}" fetch_comments "${fileKey}"`,
+      { encoding: 'utf8', timeout: 120000 }
+    )
+    const data = JSON.parse(result)
+    const comments = (data.comments || []).map(c => ({
+      id: c.id,
+      message: c.message,
+      user: c.user ? c.user.handle : 'unknown',
+      createdAt: c.created_at,
+      resolvedAt: c.resolved_at || null,
+      nodeId: c.client_meta ? c.client_meta.node_id : null,
+      orderId: c.order_id || null,
+      parentId: c.parent_id || null
+    }))
+    return comments
+  } catch (e) {
+    console.error(`WARN: failed to fetch comments: ${e.message}`)
+    return []
+  }
+}
+
 // ── Main ────────────────────────────────────────────────────────────────────
 function main() {
   const index = loadIndex()
@@ -123,12 +151,19 @@ function main() {
     console.error(`Fetched ${fetchedCount} image URLs`)
   }
 
+  // Fetch comments
+  const comments = noComments ? [] : fetchComments()
+  if (comments.length > 0) {
+    console.error(`Fetched ${comments.length} comments`)
+  }
+
   // Build the embedded data object
   const embeddedData = {
     index,
     reviews: reviews.map(r => r.review),
     diffs: allDiffs,
     imageUrls,
+    comments,
     generatedAt: new Date().toISOString()
   }
 
@@ -475,12 +510,13 @@ function generateAppJs() {
   return `
 // ── State ─────────────────────────────────────────────────────────────────
 const state = {
-  screen: 'index',       // 'index' | 'accordion' | 'detail'
+  screen: 'index',       // 'index' | 'accordion' | 'detail' | 'timeline' | 'comments'
   reviewIdx: null,        // which review is selected
   activeFilters: new Set(['structural', 'cosmetic']),
   expandedFrames: new Set(),
   detailNodeId: null,
   focusIdx: -1,
+  commentFilters: { author: null, frame: null, resolved: 'all' },
 };
 
 const app = document.getElementById('app');
@@ -506,6 +542,26 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+function formatIsoDate(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ', ' +
+         d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+}
+
+function getFrameName(nodeId) {
+  const idx = DATA.index;
+  if (!idx.frames) return nodeId;
+  const frame = idx.frames.find(f => f.id === nodeId || f.nodeId === nodeId);
+  return frame ? frame.name : nodeId;
+}
+
+function getUniqueAuthors() {
+  const authors = new Set();
+  (DATA.comments || []).forEach(c => authors.add(c.user));
+  return Array.from(authors).sort();
+}
+
 // ── Index Screen ──────────────────────────────────────────────────────────
 function renderIndex() {
   state.screen = 'index';
@@ -517,6 +573,21 @@ function renderIndex() {
   html += '<span class="header-meta">' + escapeHtml(idx.fileName || idx.fileKey) + '</span></div>';
   html += '<span class="header-meta">' + idx.frames.length + ' frames tracked</span>';
   html += '</div>';
+
+  // Nav buttons
+  const commentCount = (DATA.comments || []).length;
+  const unresolvedCount = (DATA.comments || []).filter(c => !c.resolvedAt).length;
+  html += '<div style="display:flex;gap:8px;padding:16px 24px 0">';
+  if (reviews.length > 0) {
+    html += '<button class="badge badge-structural" onclick="renderTimeline()" style="cursor:pointer;font-size:13px;padding:6px 14px">Timeline</button>';
+  }
+  if (commentCount > 0) {
+    html += '<button class="badge" onclick="renderComments()" style="cursor:pointer;font-size:13px;padding:6px 14px;background:var(--border);color:var(--text-primary)">' + commentCount + ' comments';
+    if (unresolvedCount > 0) html += ' · ' + unresolvedCount + ' open';
+    html += '</button>';
+  }
+  html += '</div>';
+
   html += '<div class="content">';
   html += '<div class="section-label">Recent Diffs</div>';
 
@@ -801,6 +872,26 @@ function renderDetail(nodeId) {
     html += '<div class="diff-meta" style="margin-top:16px">No detailed structural diff available for this frame.</div>';
   }
 
+  // Inline comments for this frame
+  const frameComments = (DATA.comments || []).filter(c => c.nodeId === nodeId || c.nodeId === nodeId.replace('_', ':'));
+  if (frameComments.length > 0) {
+    html += '<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:16px">';
+    html += '<div class="change-group-header">Comments on this frame (' + frameComments.length + ')</div>';
+    for (const c of frameComments.sort((a, b) => b.createdAt.localeCompare(a.createdAt))) {
+      const resolved = c.resolvedAt ? ' · resolved' : '';
+      html += '<div style="display:flex;gap:8px;margin-bottom:10px">';
+      html += '<div style="width:10px;height:10px;border-radius:2px;background:var(--border);border:1px dashed var(--text-secondary);flex-shrink:0;margin-top:3px"></div>';
+      html += '<div style="flex:1">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:baseline">';
+      html += '<span style="font-weight:500;font-size:13px">' + escapeHtml(c.user) + '<span style="color:var(--text-secondary);font-size:11px">' + resolved + '</span></span>';
+      html += '<span style="color:var(--text-secondary);font-size:11px">' + formatIsoDate(c.createdAt) + '</span>';
+      html += '</div>';
+      html += '<p style="color:var(--text-secondary);margin:2px 0 0;font-size:12px;font-style:italic">"' + escapeHtml(c.message) + '"</p>';
+      html += '</div></div>';
+    }
+    html += '</div>';
+  }
+
   html += '</div>'; // detail-main
   html += '</div>'; // detail-layout
   app.innerHTML = html;
@@ -851,6 +942,164 @@ function renderDetailHunk(groupKey, item, type) {
     default:
       return '<div class="' + cls + '">"' + name + '"</div>';
   }
+}
+
+// ── Comments Screen ──────────────────────────────────────────────────────
+function renderComments() {
+  state.screen = 'comments';
+  const comments = DATA.comments || [];
+  const f = state.commentFilters;
+
+  let filtered = comments;
+  if (f.author) filtered = filtered.filter(c => c.user === f.author);
+  if (f.frame) filtered = filtered.filter(c => c.nodeId === f.frame);
+  if (f.resolved === 'unresolved') filtered = filtered.filter(c => !c.resolvedAt);
+  else if (f.resolved === 'resolved') filtered = filtered.filter(c => !!c.resolvedAt);
+
+  const unresolved = filtered.filter(c => !c.resolvedAt).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  const resolved = filtered.filter(c => !!c.resolvedAt).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+  const authors = getUniqueAuthors();
+  const totalUnresolved = comments.filter(c => !c.resolvedAt).length;
+
+  let html = '<div class="topbar">';
+  html += '<div class="topbar-left">';
+  html += '<button class="back-btn" onclick="renderIndex()">← Back</button>';
+  html += '<span style="color:var(--border)">|</span>';
+  html += '<span style="font-weight:600">Comments</span>';
+  html += '<span style="color:var(--text-secondary);font-size:12px">' + comments.length + ' total · ' + totalUnresolved + ' unresolved</span>';
+  html += '</div>';
+  html += '<div class="filters">';
+
+  // Author filter
+  html += '<select class="filter-pill" onchange="state.commentFilters.author=this.value||null;renderComments()" style="cursor:pointer;background:var(--card-bg);color:var(--text-primary);border:1px solid var(--border);padding:4px 8px;border-radius:12px;font-size:12px">';
+  html += '<option value="">All authors</option>';
+  for (const a of authors) {
+    html += '<option value="' + escapeHtml(a) + '"' + (f.author === a ? ' selected' : '') + '>' + escapeHtml(a) + '</option>';
+  }
+  html += '</select>';
+
+  // Resolved filter
+  ['unresolved', 'resolved', 'all'].forEach(val => {
+    const active = f.resolved === val || (val === 'all' && !f.resolved);
+    html += '<button class="filter-pill' + (active ? '' : ' inactive') + '" onclick="state.commentFilters.resolved=\\'' + val + '\\';renderComments()" style="cursor:pointer">' + val + '</button>';
+  });
+  html += '</div></div>';
+
+  html += '<div class="content">';
+
+  function renderCommentItem(c, dimmed) {
+    const opacity = dimmed ? 'opacity:0.5;' : '';
+    let h = '<div style="display:flex;gap:10px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border);' + opacity + '">';
+    h += '<div style="width:10px;height:10px;border-radius:2px;background:var(--border);border:1px dashed var(--text-secondary);flex-shrink:0;margin-top:4px"></div>';
+    h += '<div style="flex:1">';
+    h += '<div style="display:flex;justify-content:space-between;align-items:baseline">';
+    h += '<div><span style="font-weight:500">' + escapeHtml(c.user) + '</span>';
+    if (c.nodeId) h += ' <span style="color:var(--text-secondary);font-size:12px">on </span><span style="font-size:12px">' + escapeHtml(getFrameName(c.nodeId)) + '</span>';
+    h += '</div>';
+    h += '<span style="color:var(--text-secondary);font-size:11px">' + formatIsoDate(c.createdAt) + '</span>';
+    h += '</div>';
+    h += '<p style="color:' + (dimmed ? 'var(--text-secondary)' : 'var(--text-primary)') + ';margin:4px 0 0;font-size:13px">"' + escapeHtml(c.message) + '"</p>';
+    h += '</div></div>';
+    return h;
+  }
+
+  if (unresolved.length > 0) {
+    for (const c of unresolved) html += renderCommentItem(c, false);
+  }
+
+  if (resolved.length > 0) {
+    html += '<div style="font-size:11px;text-transform:uppercase;color:var(--text-secondary);margin:8px 0 12px">Resolved</div>';
+    for (const c of resolved) html += renderCommentItem(c, true);
+  }
+
+  if (unresolved.length === 0 && resolved.length === 0) {
+    html += '<p style="color:var(--text-secondary);margin-top:24px">No comments match the current filters.</p>';
+  }
+
+  html += '</div>';
+  app.innerHTML = html;
+}
+
+// ── Timeline Screen ─────────────────────────────────────────────────────
+function renderTimeline() {
+  state.screen = 'timeline';
+  const comments = (DATA.comments || []).map(c => ({ ...c, _type: 'comment', _time: c.createdAt }));
+  const reviews = (DATA.reviews || []).map((r, i) => ({ ...r, _type: 'version', _time: r.current ? r.current.replace(/(\\d{4})(\\d{2})(\\d{2})T(\\d{2})(\\d{2})(\\d{2})Z/, '$1-$2-$3T$4:$5:$6Z') : r.reviewedAt || '', _reviewIdx: i }));
+
+  // Merge and sort by time descending
+  const events = [...comments, ...reviews].sort((a, b) => b._time.localeCompare(a._time));
+
+  let html = '<div class="topbar">';
+  html += '<div class="topbar-left">';
+  html += '<button class="back-btn" onclick="renderIndex()">← Back</button>';
+  html += '<span style="color:var(--border)">|</span>';
+  html += '<span style="font-weight:600">Timeline</span>';
+  html += '<span style="color:var(--text-secondary);font-size:12px">' + reviews.length + ' diffs · ' + comments.length + ' comments</span>';
+  html += '</div></div>';
+
+  html += '<div class="content" style="padding-left:40px;position:relative">';
+  html += '<div style="position:absolute;left:24px;top:0;bottom:0;width:1px;background:var(--border)"></div>';
+
+  for (const ev of events) {
+    if (ev._type === 'version') {
+      const s = ev.summary || {};
+      const maxSev = s.structural > 0 ? 'structural' : s.cosmetic > 0 ? 'cosmetic' : 'unchanged';
+      const dotColor = maxSev === 'structural' ? 'var(--severity-structural)' : maxSev === 'cosmetic' ? 'var(--severity-cosmetic)' : 'var(--text-secondary)';
+      const dimmed = maxSev === 'unchanged' ? 'opacity:0.35;' : '';
+
+      html += '<div style="position:relative;margin-bottom:16px;padding-left:24px;' + dimmed + '">';
+      html += '<div style="position:absolute;left:-16px;top:6px;width:10px;height:10px;border-radius:50%;background:' + dotColor + '"></div>';
+      html += '<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:10px 14px">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:baseline">';
+      html += '<span style="font-weight:600;font-size:14px">' + formatTimestamp(ev.baseline) + ' → ' + formatTimestamp(ev.current) + '</span>';
+      html += '</div>';
+
+      if (s.structural > 0 || s.cosmetic > 0) {
+        html += '<div style="display:flex;gap:6px;margin-top:6px">';
+        if (s.structural > 0) html += '<span style="background:var(--severity-structural);padding:1px 8px;border-radius:10px;font-size:11px">' + s.structural + ' structural</span>';
+        if (s.cosmetic > 0) html += '<span style="background:var(--severity-cosmetic);color:#000;padding:1px 8px;border-radius:10px;font-size:11px">' + s.cosmetic + ' cosmetic</span>';
+        html += '</div>';
+      }
+
+      // Frame summary
+      const changed = (ev.decisions || []).filter(d => d.severity !== 'unchanged');
+      if (changed.length > 0) {
+        html += '<div style="margin-top:6px;font-size:12px;color:var(--text-secondary)">';
+        html += changed.map(d => {
+          const sevColor = d.severity === 'structural' ? 'var(--severity-structural)' : 'var(--severity-cosmetic)';
+          return '<span style="color:' + sevColor + '">' + escapeHtml(d.nodeName) + '</span> ' + escapeHtml(d.summary || d.severity);
+        }).join(' · ');
+        html += '</div>';
+      }
+
+      html += '<div style="margin-top:6px;font-size:12px;color:var(--accent);cursor:pointer" onclick="state.reviewIdx=' + ev._reviewIdx + ';renderAccordion()">View diff →</div>';
+      html += '</div></div>';
+
+    } else {
+      // Comment
+      html += '<div style="position:relative;margin-bottom:16px;padding-left:24px">';
+      html += '<div style="position:absolute;left:-16px;top:6px;width:10px;height:10px;border-radius:2px;background:var(--border);border:1px dashed var(--text-secondary)"></div>';
+      html += '<div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;padding:8px 14px">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:baseline">';
+      html += '<div style="font-size:13px"><span style="font-weight:500">' + escapeHtml(ev.user) + '</span>';
+      if (ev.nodeId) html += ' <span style="color:var(--text-secondary);font-size:12px">on </span><span style="font-size:12px">' + escapeHtml(getFrameName(ev.nodeId)) + '</span>';
+      html += '</div>';
+      html += '<div style="display:flex;align-items:center;gap:8px">';
+      if (ev.resolvedAt) html += '<span style="color:var(--text-secondary);font-size:11px">resolved</span>';
+      html += '<span style="color:var(--text-secondary);font-size:12px">' + formatIsoDate(ev.createdAt) + '</span>';
+      html += '</div></div>';
+      html += '<p style="color:var(--text-secondary);margin:4px 0 0;font-size:12px;font-style:italic">"' + escapeHtml(ev.message) + '"</p>';
+      html += '</div></div>';
+    }
+  }
+
+  if (events.length === 0) {
+    html += '<p style="color:var(--text-secondary);margin-top:24px">No timeline events found.</p>';
+  }
+
+  html += '</div>';
+  app.innerHTML = html;
 }
 
 // ── Lazy Image Loading ────────────────────────────────────────────────────
@@ -920,6 +1169,10 @@ document.addEventListener('keydown', (e) => {
     } else if (e.key === 'Escape') {
       renderAccordion();
       setupLazyImages();
+    }
+  } else if (state.screen === 'comments' || state.screen === 'timeline') {
+    if (e.key === 'Escape') {
+      renderIndex();
     }
   }
 });
