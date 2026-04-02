@@ -488,6 +488,83 @@ function generateHtml(data) {
     .frame-card.focused { outline: 2px solid var(--accent); outline-offset: -2px; }
     .sidebar-item.focused { outline: 2px solid var(--accent); outline-offset: -2px; }
 
+    /* ── Timeline screen ───────────────────────────────────────── */
+    .timeline-line {
+      position: absolute;
+      left: 24px;
+      top: 0;
+      bottom: 0;
+      width: 1px;
+      background: var(--border);
+    }
+    .timeline-entry {
+      position: relative;
+      margin-bottom: 16px;
+      padding-left: 24px;
+    }
+    .timeline-dot {
+      position: absolute;
+      left: -16px;
+      top: 6px;
+      width: 10px;
+      height: 10px;
+    }
+    .timeline-dot-version { border-radius: 50%; }
+    .timeline-dot-comment {
+      border-radius: 2px;
+      background: var(--border);
+      border: 1px dashed var(--text-secondary);
+    }
+    .timeline-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+    }
+    .timeline-comment-card {
+      background: var(--bg-primary);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 14px;
+    }
+
+    /* ── Comment items ────────────────────────────────────────── */
+    .comment-item {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 12px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .comment-item.dimmed { opacity: 0.5; }
+    .comment-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 2px;
+      background: var(--border);
+      border: 1px dashed var(--text-secondary);
+      flex-shrink: 0;
+      margin-top: 4px;
+    }
+    .comment-message {
+      margin: 4px 0 0;
+      font-size: 13px;
+      font-style: italic;
+    }
+
+    /* ── Nav buttons ──────────────────────────────────────────── */
+    .nav-btn {
+      cursor: pointer;
+      font-size: 13px;
+      padding: 6px 14px;
+      border: none;
+      border-radius: 16px;
+      background: var(--border);
+      color: var(--text-primary);
+      transition: background 0.15s;
+    }
+    .nav-btn:hover { background: var(--surface-hover); }
+
     /* ── Hidden screens ────────────────────────────────────────── */
     .screen { display: none; }
     .screen.active { display: block; }
@@ -579,10 +656,10 @@ function renderIndex() {
   const unresolvedCount = (DATA.comments || []).filter(c => !c.resolvedAt).length;
   html += '<div style="display:flex;gap:8px;padding:16px 24px 0">';
   if (reviews.length > 0) {
-    html += '<button class="badge badge-structural" onclick="renderTimeline()" style="cursor:pointer;font-size:13px;padding:6px 14px">Timeline</button>';
+    html += '<button class="nav-btn" onclick="renderTimeline()">Timeline</button>';
   }
   if (commentCount > 0) {
-    html += '<button class="badge" onclick="renderComments()" style="cursor:pointer;font-size:13px;padding:6px 14px;background:var(--border);color:var(--text-primary)">' + commentCount + ' comments';
+    html += '<button class="nav-btn" onclick="renderComments()">' + commentCount + ' comments';
     if (unresolvedCount > 0) html += ' · ' + unresolvedCount + ' open';
     html += '</button>';
   }
