@@ -161,9 +161,12 @@ function diffFrame(beforeNode, afterNode) {
     counts.visibilityChanges > 0 || counts.layoutChanges > 0
 
   const isCosmetic =
-    counts.bboxChanges > 0 || counts.constraintChanges > 0 ||
     counts.textChanges > 0 || counts.fillChanges > 0 || counts.strokeChanges > 0 ||
     counts.fontChanges > 0 || counts.opacityChanges > 0 || counts.effectChanges > 0
+
+  // bbox-only and constraint-only changes are Figma layout recalculation noise
+  const isNoiseOnly = !isStructural && !isCosmetic &&
+    (counts.bboxChanges > 0 || counts.constraintChanges > 0)
 
   const severity = isStructural ? 'structural' : isCosmetic ? 'cosmetic' : 'unchanged'
 
@@ -181,6 +184,7 @@ function diffFrame(beforeNode, afterNode) {
 
   return {
     severity,
+    noiseOnly: isNoiseOnly,
     summary: parts.join(', ') || 'no changes',
     nodesBefore: beforeIds.size,
     nodesAfter: afterIds.size,
@@ -229,7 +233,7 @@ function main() {
       const afterNode = readJson(currentPath)
       const diff = diffFrame(beforeNode, afterNode)
 
-      if (diff.severity === 'unchanged') { unchanged++; continue }
+      if (diff.severity === 'unchanged' || diff.noiseOnly) { unchanged++; continue }
       if (diff.severity === 'cosmetic') cosmetic++
       if (diff.severity === 'structural') structural++
 

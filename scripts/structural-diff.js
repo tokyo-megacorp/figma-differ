@@ -195,8 +195,6 @@ function main() {
     changes.layoutChanges.length > 0
 
   const isCosmetic =
-    changes.bboxChanges.length > 0 ||
-    changes.constraintChanges.length > 0 ||
     changes.textChanges.length > 0 ||
     changes.fillChanges.length > 0 ||
     changes.strokeChanges.length > 0 ||
@@ -204,7 +202,11 @@ function main() {
     changes.opacityChanges.length > 0 ||
     changes.effectChanges.length > 0
 
-  const severity = isStructural ? 'structural' : isCosmetic ? 'cosmetic' : 'unchanged'
+  // bbox-only and constraint-only changes are Figma layout recalculation noise
+  const isNoiseOnly = !isStructural && !isCosmetic &&
+    (changes.bboxChanges.length > 0 || changes.constraintChanges.length > 0)
+
+  const severity = isNoiseOnly ? 'unchanged' : isStructural ? 'structural' : isCosmetic ? 'cosmetic' : 'unchanged'
 
   // ── Summary line ────────────────────────────────────────────────────────────
   const parts = []
