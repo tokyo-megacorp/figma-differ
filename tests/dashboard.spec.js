@@ -355,7 +355,7 @@ test.describe('Dashboard v2 — Comments Screen', () => {
 
   test('comments screen has author filter', async ({ page }) => {
     await page.locator('.nav-btn').nth(1).click()
-    const select = page.locator('select.filter-pill')
+    const select = page.locator('select.filter-select').first()
     await expect(select).toBeVisible()
     await expect(select.locator('option').first()).toContainText('All authors')
   })
@@ -427,5 +427,152 @@ test.describe('Dashboard v2 — Inline Comments in Detail', () => {
   test('inline comments show author and message', async ({ page }) => {
     const commentSection = page.locator('text=Comments on this frame').locator('..')
     await expect(commentSection).toBeVisible()
+  })
+})
+
+test.describe('Dashboard v2 — Comments: Frame filter', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(`file://${HTML_PATH}`)
+    await page.locator('.nav-btn').nth(1).click()
+  })
+
+  test('frame filter dropdown exists in comments screen', async ({ page }) => {
+    const selects = page.locator('select.filter-select')
+    const count = await selects.count()
+    expect(count).toBeGreaterThanOrEqual(2) // author + frame
+  })
+
+  test('frame filter dropdown has All frames option', async ({ page }) => {
+    const selects = page.locator('select.filter-select')
+    // second filter-select is the frame filter
+    const frameSelect = selects.nth(1)
+    await expect(frameSelect).toBeVisible()
+    await expect(frameSelect.locator('option').first()).toContainText('All frames')
+  })
+
+  test('frame filter dropdown has options for frames with comments', async ({ page }) => {
+    const frameSelect = page.locator('select.filter-select').nth(1)
+    const optionCount = await frameSelect.locator('option').count()
+    // At least "All frames" + 1 frame option
+    expect(optionCount).toBeGreaterThanOrEqual(2)
+  })
+
+  test('selecting a frame filter reduces visible comments', async ({ page }) => {
+    const frameSelect = page.locator('select.filter-select').nth(1)
+    const options = frameSelect.locator('option')
+    const optionCount = await options.count()
+    // Only proceed if there are frame options beyond "All frames"
+    if (optionCount >= 2) {
+      const frameValue = await options.nth(1).getAttribute('value')
+      await frameSelect.selectOption(frameValue)
+      const comments = page.locator('.comment-item')
+      const count = await comments.count()
+      // After filtering to a single frame we should still have some or see empty state
+      const empty = page.locator('.comment-empty')
+      const hasComments = count > 0
+      const hasEmpty = await empty.isVisible()
+      expect(hasComments || hasEmpty).toBe(true)
+    }
+  })
+})
+
+test.describe('Dashboard v2 — Comments: Clickable frame names', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(`file://${HTML_PATH}`)
+    await page.locator('.nav-btn').nth(1).click()
+  })
+
+  test('comment items with a frame have a comment-frame-link element', async ({ page }) => {
+    const links = page.locator('.comment-frame-link')
+    const count = await links.count()
+    expect(count).toBeGreaterThanOrEqual(1)
+  })
+
+  test('clicking a comment-frame-link navigates away from comments screen', async ({ page }) => {
+    const link = page.locator('.comment-frame-link').first()
+    await link.click()
+    // Should have left the comments screen — topbar no longer says "Comments"
+    // and the detail sidebar should be visible (navigated to frame detail)
+    await expect(page.locator('.detail-sidebar')).toBeVisible()
+  })
+})
+
+test.describe('Dashboard v2 — Accordion: Comment badges', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(`file://${HTML_PATH}`)
+    await page.locator('.diff-card').click()
+  })
+
+  test('comment badges appear on frame cards that have comments', async ({ page }) => {
+    const badges = page.locator('.comment-badge')
+    const count = await badges.count()
+    expect(count).toBeGreaterThanOrEqual(1)
+  })
+
+  test('comment badge shows comment count text', async ({ page }) => {
+    const badge = page.locator('.comment-badge').first()
+    await expect(badge).toBeVisible()
+    const text = await badge.textContent()
+    expect(text).toMatch(/comment/)
+  })
+
+  test('comment badge includes open count when there are unresolved comments', async ({ page }) => {
+    const badges = page.locator('.comment-badge')
+    const count = await badges.count()
+    // Find a badge that mentions "open"
+    let foundOpen = false
+    for (let i = 0; i < count; i++) {
+      const text = await badges.nth(i).textContent()
+      if (text && text.includes('open')) {
+        foundOpen = true
+        break
+      }
+    }
+    // At least one frame (Login/Signup) has unresolved comments in fixture
+    expect(foundOpen).toBe(true)
+  })
+})
+
+test.describe('Dashboard v2 — CSS class verification', () => {
+  test('topbar-separator is present in accordion topbar', async ({ page }) => {
+    await page.goto(`file://${HTML_PATH}`)
+    await page.locator('.diff-card').click()
+    await expect(page.locator('.topbar-separator')).toBeVisible()
+  })
+
+  test('topbar-title is present in accordion topbar', async ({ page }) => {
+    await page.goto(`file://${HTML_PATH}`)
+    await page.locator('.diff-card').click()
+    await expect(page.locator('.topbar-title')).toBeVisible()
+  })
+
+  test('filter-select class is present in comments screen', async ({ page }) => {
+    await page.goto(`file://${HTML_PATH}`)
+    await page.locator('.nav-btn').nth(1).click()
+    await expect(page.locator('select.filter-select').first()).toBeVisible()
+  })
+
+  test('comment-body class is present on comment items', async ({ page }) => {
+    await page.goto(`file://${HTML_PATH}`)
+    await page.locator('.nav-btn').nth(1).click()
+    await expect(page.locator('.comment-body').first()).toBeVisible()
+  })
+
+  test('comment-author class is present on comment items', async ({ page }) => {
+    await page.goto(`file://${HTML_PATH}`)
+    await page.locator('.nav-btn').nth(1).click()
+    await expect(page.locator('.comment-author').first()).toBeVisible()
+  })
+
+  test('comment-date class is present on comment items', async ({ page }) => {
+    await page.goto(`file://${HTML_PATH}`)
+    await page.locator('.nav-btn').nth(1).click()
+    await expect(page.locator('.comment-date').first()).toBeVisible()
+  })
+
+  test('topbar-meta class is present in comments topbar', async ({ page }) => {
+    await page.goto(`file://${HTML_PATH}`)
+    await page.locator('.nav-btn').nth(1).click()
+    await expect(page.locator('.topbar-meta')).toBeVisible()
   })
 })

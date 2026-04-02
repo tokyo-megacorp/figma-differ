@@ -552,6 +552,43 @@ function generateHtml(data) {
       font-style: italic;
     }
 
+    /* ── Comment detail styles ─────────────────────────────────── */
+    .comment-body { flex: 1; }
+    .comment-header { display: flex; justify-content: space-between; align-items: baseline; }
+    .comment-author { font-weight: 500; }
+    .comment-frame-ref { color: var(--text-secondary); font-size: 12px; }
+    .comment-frame-link { font-size: 12px; cursor: pointer; color: var(--text-primary); }
+    .comment-frame-link:hover { text-decoration: underline; color: var(--accent); }
+    .comment-date { color: var(--text-secondary); font-size: 11px; }
+    .comment-resolved-tag { color: var(--text-secondary); font-size: 11px; }
+    .comment-section-label { font-size: 11px; text-transform: uppercase; color: var(--text-secondary); margin: 8px 0 12px; }
+    .comment-empty { color: var(--text-secondary); margin-top: 24px; }
+
+    /* ── Filter select ────────────────────────────────────────── */
+    .filter-select {
+      cursor: pointer;
+      background: var(--card-bg);
+      color: var(--text-primary);
+      border: 1px solid var(--border);
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+    }
+
+    /* ── Timeline detail styles ───────────────────────────────── */
+    .timeline-content { padding-left: 40px; position: relative; }
+    .timeline-entry-dimmed { opacity: 0.35; }
+    .timeline-version-title { font-weight: 600; font-size: 14px; }
+    .timeline-badges { display: flex; gap: 6px; margin-top: 6px; }
+    .timeline-frame-summary { margin-top: 6px; font-size: 12px; color: var(--text-secondary); }
+    .timeline-diff-link { margin-top: 6px; font-size: 12px; color: var(--accent); cursor: pointer; }
+    .timeline-diff-link:hover { text-decoration: underline; }
+    .timeline-comment-body { color: var(--text-secondary); margin: 4px 0 0; font-size: 12px; font-style: italic; }
+    .topbar-separator { color: var(--border); }
+    .topbar-title { font-weight: 600; }
+    .topbar-meta { color: var(--text-secondary); font-size: 12px; }
+    .comment-badge { font-size: 11px; color: var(--text-secondary); margin-left: 8px; }
+
     /* ── Nav buttons ──────────────────────────────────────────── */
     .nav-btn {
       cursor: pointer;
@@ -639,6 +676,50 @@ function getUniqueAuthors() {
   return Array.from(authors).sort();
 }
 
+function getUniqueFrames() {
+  const frames = new Map();
+  (DATA.comments || []).forEach(c => {
+    if (c.nodeId) {
+      const name = getFrameName(c.nodeId);
+      if (!frames.has(c.nodeId)) frames.set(c.nodeId, name);
+    }
+  });
+  return Array.from(frames.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+}
+
+function getFrameCommentCounts() {
+  const counts = {};
+  (DATA.comments || []).forEach(c => {
+    if (c.nodeId) {
+      if (!counts[c.nodeId]) counts[c.nodeId] = { total: 0, unresolved: 0 };
+      counts[c.nodeId].total++;
+      if (!c.resolvedAt) counts[c.nodeId].unresolved++;
+    }
+  });
+  return counts;
+}
+
+function navigateToFrame(nodeId) {
+  const idx = DATA.index;
+  const frame = idx.frames.find(f => f.id === nodeId || f.nodeId === nodeId);
+  if (!frame) return;
+  // Find the first review that has this frame
+  for (let i = 0; i < DATA.reviews.length; i++) {
+    const decisions = DATA.reviews[i].decisions || [];
+    const match = decisions.find(d => d.nodeId === nodeId || d.nodeId === (nodeId || '').replace(':', '_'));
+    if (match) {
+      state.reviewIdx = i;
+      renderDetail(nodeId);
+      return;
+    }
+  }
+  // If no review has it, just go to first review
+  if (DATA.reviews.length > 0) {
+    state.reviewIdx = 0;
+    renderDetail(nodeId);
+  }
+}
+
 // ── Index Screen ──────────────────────────────────────────────────────────
 function renderIndex() {
   state.screen = 'index';
@@ -654,7 +735,7 @@ function renderIndex() {
   // Nav buttons
   const commentCount = (DATA.comments || []).length;
   const unresolvedCount = (DATA.comments || []).filter(c => !c.resolvedAt).length;
-  html += '<div style="display:flex;gap:8px;padding:16px 24px 0">';
+  html += '<div class="filters" style="padding:16px 24px 0">';
   if (reviews.length > 0) {
     html += '<button class="nav-btn" onclick="renderTimeline()">Timeline</button>';
   }
@@ -716,11 +797,13 @@ function renderAccordion() {
     pages[d.page].push(d);
   }
 
+  const commentCounts = getFrameCommentCounts();
+
   let html = '<div class="topbar">';
   html += '<div class="topbar-left">';
   html += '<button class="back-btn" onclick="renderIndex()">← Back</button>';
-  html += '<span style="color:var(--border)">|</span>';
-  html += '<span style="font-weight:600">' + formatTimestamp(review.baseline) + ' → ' + formatTimestamp(review.current) + '</span>';
+  html += '<span class="topbar-separator">|</span>';
+  html += '<span class="topbar-title">' + formatTimestamp(review.baseline) + ' → ' + formatTimestamp(review.current) + '</span>';
   html += '</div>';
   html += '<div class="filters">';
   ['structural', 'cosmetic', 'unchanged'].forEach(sev => {
@@ -750,6 +833,8 @@ function renderAccordion() {
       html += '<span class="severity-dot severity-dot-' + d.severity + '"></span>';
       html += '<span class="frame-card-name" onclick="event.stopPropagation();openDetail(\\'' + d.nodeId + '\\')">' + escapeHtml(d.nodeName) + '</span>';
       html += '<span class="frame-card-stats">' + d.nodeCountBefore + ' → ' + d.nodeCountAfter + ' nodes (' + (d.nodeCountDelta >= 0 ? '+' : '') + d.nodeCountDelta + ')</span>';
+      const cc = commentCounts[d.nodeId] || commentCounts[(d.nodeId || '').replace('_', ':')] || null;
+      if (cc) html += '<span class="comment-badge">' + cc.total + ' comment' + (cc.total !== 1 ? 's' : '') + (cc.unresolved > 0 ? ' · ' + cc.unresolved + ' open' : '') + '</span>';
       html += '</div>';
       html += '<span class="frame-card-stats">' + escapeHtml(d.summary) + ' ' + (expanded ? '▾' : '▸') + '</span>';
       html += '</div>';
@@ -956,14 +1041,14 @@ function renderDetail(nodeId) {
     html += '<div class="change-group-header">Comments on this frame (' + frameComments.length + ')</div>';
     for (const c of frameComments.sort((a, b) => b.createdAt.localeCompare(a.createdAt))) {
       const resolved = c.resolvedAt ? ' · resolved' : '';
-      html += '<div style="display:flex;gap:8px;margin-bottom:10px">';
-      html += '<div style="width:10px;height:10px;border-radius:2px;background:var(--border);border:1px dashed var(--text-secondary);flex-shrink:0;margin-top:3px"></div>';
-      html += '<div style="flex:1">';
-      html += '<div style="display:flex;justify-content:space-between;align-items:baseline">';
-      html += '<span style="font-weight:500;font-size:13px">' + escapeHtml(c.user) + '<span style="color:var(--text-secondary);font-size:11px">' + resolved + '</span></span>';
-      html += '<span style="color:var(--text-secondary);font-size:11px">' + formatIsoDate(c.createdAt) + '</span>';
+      html += '<div class="comment-item">';
+      html += '<div class="comment-dot"></div>';
+      html += '<div class="comment-body">';
+      html += '<div class="comment-header">';
+      html += '<span class="comment-author" style="font-size:13px">' + escapeHtml(c.user) + '<span class="comment-resolved-tag">' + resolved + '</span></span>';
+      html += '<span class="comment-date">' + formatIsoDate(c.createdAt) + '</span>';
       html += '</div>';
-      html += '<p style="color:var(--text-secondary);margin:2px 0 0;font-size:12px;font-style:italic">"' + escapeHtml(c.message) + '"</p>';
+      html += '<p class="timeline-comment-body">"' + escapeHtml(c.message) + '"</p>';
       html += '</div></div>';
     }
     html += '</div>';
@@ -1037,29 +1122,38 @@ function renderComments() {
   const resolved = filtered.filter(c => !!c.resolvedAt).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   const authors = getUniqueAuthors();
+  const frames = getUniqueFrames();
   const totalUnresolved = comments.filter(c => !c.resolvedAt).length;
 
   let html = '<div class="topbar">';
   html += '<div class="topbar-left">';
   html += '<button class="back-btn" onclick="renderIndex()">← Back</button>';
-  html += '<span style="color:var(--border)">|</span>';
-  html += '<span style="font-weight:600">Comments</span>';
-  html += '<span style="color:var(--text-secondary);font-size:12px">' + comments.length + ' total · ' + totalUnresolved + ' unresolved</span>';
+  html += '<span class="topbar-separator">|</span>';
+  html += '<span class="topbar-title">Comments</span>';
+  html += '<span class="topbar-meta">' + comments.length + ' total · ' + totalUnresolved + ' unresolved</span>';
   html += '</div>';
   html += '<div class="filters">';
 
   // Author filter
-  html += '<select class="filter-pill" onchange="state.commentFilters.author=this.value||null;renderComments()" style="cursor:pointer;background:var(--card-bg);color:var(--text-primary);border:1px solid var(--border);padding:4px 8px;border-radius:12px;font-size:12px">';
+  html += '<select class="filter-select" onchange="state.commentFilters.author=this.value||null;renderComments()">';
   html += '<option value="">All authors</option>';
   for (const a of authors) {
     html += '<option value="' + escapeHtml(a) + '"' + (f.author === a ? ' selected' : '') + '>' + escapeHtml(a) + '</option>';
   }
   html += '</select>';
 
+  // Frame filter
+  html += '<select class="filter-select" onchange="state.commentFilters.frame=this.value||null;renderComments()">';
+  html += '<option value="">All frames</option>';
+  for (const [nodeId, name] of frames) {
+    html += '<option value="' + escapeHtml(nodeId) + '"' + (f.frame === nodeId ? ' selected' : '') + '>' + escapeHtml(name) + '</option>';
+  }
+  html += '</select>';
+
   // Resolved filter
   ['unresolved', 'resolved', 'all'].forEach(val => {
     const active = f.resolved === val || (val === 'all' && !f.resolved);
-    html += '<button class="filter-pill' + (active ? '' : ' inactive') + '" onclick="state.commentFilters.resolved=\\'' + val + '\\';renderComments()" style="cursor:pointer">' + val + '</button>';
+    html += '<button class="filter-pill' + (active ? '' : ' inactive') + '" onclick="state.commentFilters.resolved=\\'' + val + '\\';renderComments()">' + val + '</button>';
   });
   html += '</div></div>';
 
@@ -1068,12 +1162,12 @@ function renderComments() {
   function renderCommentItem(c, dimmed) {
     let h = '<div class="comment-item' + (dimmed ? ' dimmed' : '') + '">';
     h += '<div class="comment-dot"></div>';
-    h += '<div style="flex:1">';
-    h += '<div style="display:flex;justify-content:space-between;align-items:baseline">';
-    h += '<div><span style="font-weight:500">' + escapeHtml(c.user) + '</span>';
-    if (c.nodeId) h += ' <span style="color:var(--text-secondary);font-size:12px">on </span><span style="font-size:12px">' + escapeHtml(getFrameName(c.nodeId)) + '</span>';
+    h += '<div class="comment-body">';
+    h += '<div class="comment-header">';
+    h += '<div><span class="comment-author">' + escapeHtml(c.user) + '</span>';
+    if (c.nodeId) h += ' <span class="comment-frame-ref">on </span><span class="comment-frame-link" onclick="navigateToFrame(\\'' + escapeHtml(c.nodeId) + '\\')">' + escapeHtml(getFrameName(c.nodeId)) + '</span>';
     h += '</div>';
-    h += '<span style="color:var(--text-secondary);font-size:11px">' + formatIsoDate(c.createdAt) + '</span>';
+    h += '<span class="comment-date">' + formatIsoDate(c.createdAt) + '</span>';
     h += '</div>';
     h += '<p class="comment-message" style="color:' + (dimmed ? 'var(--text-secondary)' : 'var(--text-primary)') + '">"' + escapeHtml(c.message) + '"</p>';
     h += '</div></div>';
@@ -1085,12 +1179,12 @@ function renderComments() {
   }
 
   if (resolved.length > 0) {
-    html += '<div style="font-size:11px;text-transform:uppercase;color:var(--text-secondary);margin:8px 0 12px">Resolved</div>';
+    html += '<div class="comment-section-label">Resolved</div>';
     for (const c of resolved) html += renderCommentItem(c, true);
   }
 
   if (unresolved.length === 0 && resolved.length === 0) {
-    html += '<p style="color:var(--text-secondary);margin-top:24px">No comments match the current filters.</p>';
+    html += '<p class="comment-empty">No comments match the current filters.</p>';
   }
 
   html += '</div>';
@@ -1103,75 +1197,69 @@ function renderTimeline() {
   const comments = (DATA.comments || []).map(c => ({ ...c, _type: 'comment', _time: c.createdAt }));
   const reviews = (DATA.reviews || []).map((r, i) => ({ ...r, _type: 'version', _time: r.current ? r.current.replace(/(\\d{4})(\\d{2})(\\d{2})T(\\d{2})(\\d{2})(\\d{2})Z/, '$1-$2-$3T$4:$5:$6Z') : r.reviewedAt || '', _reviewIdx: i }));
 
-  // Merge and sort by time descending
   const events = [...comments, ...reviews].sort((a, b) => b._time.localeCompare(a._time));
 
   let html = '<div class="topbar">';
   html += '<div class="topbar-left">';
   html += '<button class="back-btn" onclick="renderIndex()">← Back</button>';
-  html += '<span style="color:var(--border)">|</span>';
-  html += '<span style="font-weight:600">Timeline</span>';
-  html += '<span style="color:var(--text-secondary);font-size:12px">' + reviews.length + ' diffs · ' + comments.length + ' comments</span>';
+  html += '<span class="topbar-separator">|</span>';
+  html += '<span class="topbar-title">Timeline</span>';
+  html += '<span class="topbar-meta">' + reviews.length + ' diffs · ' + comments.length + ' comments</span>';
   html += '</div></div>';
 
-  html += '<div class="content" style="padding-left:40px;position:relative">';
-  html += '<div style="position:absolute;left:24px;top:0;bottom:0;width:1px;background:var(--border)"></div>';
+  html += '<div class="content timeline-content">';
+  html += '<div class="timeline-line"></div>';
 
   for (const ev of events) {
     if (ev._type === 'version') {
       const s = ev.summary || {};
       const maxSev = s.structural > 0 ? 'structural' : s.cosmetic > 0 ? 'cosmetic' : 'unchanged';
       const dotColor = maxSev === 'structural' ? 'var(--severity-structural)' : maxSev === 'cosmetic' ? 'var(--severity-cosmetic)' : 'var(--text-secondary)';
-      const dimmed = maxSev === 'unchanged' ? 'opacity:0.35;' : '';
 
-      html += '<div style="position:relative;margin-bottom:16px;padding-left:24px;' + dimmed + '">';
-      html += '<div style="position:absolute;left:-16px;top:6px;width:10px;height:10px;border-radius:50%;background:' + dotColor + '"></div>';
-      html += '<div style="background:var(--card-bg);border:1px solid var(--border);border-radius:6px;padding:10px 14px">';
-      html += '<div style="display:flex;justify-content:space-between;align-items:baseline">';
-      html += '<span style="font-weight:600;font-size:14px">' + formatTimestamp(ev.baseline) + ' → ' + formatTimestamp(ev.current) + '</span>';
-      html += '</div>';
+      html += '<div class="timeline-entry' + (maxSev === 'unchanged' ? ' timeline-entry-dimmed' : '') + '">';
+      html += '<div class="timeline-dot timeline-dot-version" style="background:' + dotColor + '"></div>';
+      html += '<div class="timeline-card">';
+      html += '<span class="timeline-version-title">' + formatTimestamp(ev.baseline) + ' → ' + formatTimestamp(ev.current) + '</span>';
 
       if (s.structural > 0 || s.cosmetic > 0) {
-        html += '<div style="display:flex;gap:6px;margin-top:6px">';
-        if (s.structural > 0) html += '<span style="background:var(--severity-structural);padding:1px 8px;border-radius:10px;font-size:11px">' + s.structural + ' structural</span>';
-        if (s.cosmetic > 0) html += '<span style="background:var(--severity-cosmetic);color:#000;padding:1px 8px;border-radius:10px;font-size:11px">' + s.cosmetic + ' cosmetic</span>';
+        html += '<div class="timeline-badges">';
+        if (s.structural > 0) html += '<span class="badge badge-structural">' + s.structural + ' structural</span>';
+        if (s.cosmetic > 0) html += '<span class="badge badge-cosmetic">' + s.cosmetic + ' cosmetic</span>';
         html += '</div>';
       }
 
-      // Frame summary
       const changed = (ev.decisions || []).filter(d => d.severity !== 'unchanged');
       if (changed.length > 0) {
-        html += '<div style="margin-top:6px;font-size:12px;color:var(--text-secondary)">';
+        html += '<div class="timeline-frame-summary">';
         html += changed.map(d => {
-          const sevColor = d.severity === 'structural' ? 'var(--severity-structural)' : 'var(--severity-cosmetic)';
-          return '<span style="color:' + sevColor + '">' + escapeHtml(d.nodeName) + '</span> ' + escapeHtml(d.summary || d.severity);
+          const cls = d.severity === 'structural' ? 'severity-dot-structural' : 'severity-dot-cosmetic';
+          return '<span class="' + cls + '" style="color:' + (d.severity === 'structural' ? 'var(--severity-structural)' : 'var(--severity-cosmetic)') + '">' + escapeHtml(d.nodeName) + '</span> ' + escapeHtml(d.summary || d.severity);
         }).join(' · ');
         html += '</div>';
       }
 
-      html += '<div style="margin-top:6px;font-size:12px;color:var(--accent);cursor:pointer" onclick="state.reviewIdx=' + ev._reviewIdx + ';renderAccordion()">View diff →</div>';
+      html += '<div class="timeline-diff-link" onclick="state.reviewIdx=' + ev._reviewIdx + ';renderAccordion()">View diff →</div>';
       html += '</div></div>';
 
     } else {
-      // Comment
-      html += '<div style="position:relative;margin-bottom:16px;padding-left:24px">';
-      html += '<div style="position:absolute;left:-16px;top:6px;width:10px;height:10px;border-radius:2px;background:var(--border);border:1px dashed var(--text-secondary)"></div>';
-      html += '<div style="background:var(--bg-primary);border:1px solid var(--border);border-radius:6px;padding:8px 14px">';
-      html += '<div style="display:flex;justify-content:space-between;align-items:baseline">';
-      html += '<div style="font-size:13px"><span style="font-weight:500">' + escapeHtml(ev.user) + '</span>';
-      if (ev.nodeId) html += ' <span style="color:var(--text-secondary);font-size:12px">on </span><span style="font-size:12px">' + escapeHtml(getFrameName(ev.nodeId)) + '</span>';
+      html += '<div class="timeline-entry">';
+      html += '<div class="timeline-dot timeline-dot-comment"></div>';
+      html += '<div class="timeline-comment-card">';
+      html += '<div class="comment-header">';
+      html += '<div><span class="comment-author">' + escapeHtml(ev.user) + '</span>';
+      if (ev.nodeId) html += ' <span class="comment-frame-ref">on </span><span class="comment-frame-link" onclick="navigateToFrame(\\'' + escapeHtml(ev.nodeId) + '\\')">' + escapeHtml(getFrameName(ev.nodeId)) + '</span>';
       html += '</div>';
       html += '<div style="display:flex;align-items:center;gap:8px">';
-      if (ev.resolvedAt) html += '<span style="color:var(--text-secondary);font-size:11px">resolved</span>';
-      html += '<span style="color:var(--text-secondary);font-size:12px">' + formatIsoDate(ev.createdAt) + '</span>';
+      if (ev.resolvedAt) html += '<span class="comment-resolved-tag">resolved</span>';
+      html += '<span class="comment-date">' + formatIsoDate(ev.createdAt) + '</span>';
       html += '</div></div>';
-      html += '<p style="color:var(--text-secondary);margin:4px 0 0;font-size:12px;font-style:italic">"' + escapeHtml(ev.message) + '"</p>';
+      html += '<p class="timeline-comment-body">"' + escapeHtml(ev.message) + '"</p>';
       html += '</div></div>';
     }
   }
 
   if (events.length === 0) {
-    html += '<p style="color:var(--text-secondary);margin-top:24px">No timeline events found.</p>';
+    html += '<p class="comment-empty">No timeline events found.</p>';
   }
 
   html += '</div>';
