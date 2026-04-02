@@ -85,5 +85,6 @@ fi
 
 echo "Fetch complete. Running structural diff..." >&2
 
-# Step 3: Run bulk-diff
-node "$SCRIPT_DIR/bulk-diff.js" "$FILE_KEY" "$CURRENT_DIR" $TOP_FLAG
+# Step 3: Run bulk-diff — output JSON to stdout AND save to latest-diff-all.json
+JSON_OUT="${BASE_DIR}/latest-diff-all.json"
+node "$SCRIPT_DIR/bulk-diff.js" "$FILE_KEY" "$CURRENT_DIR" $TOP_FLAG | tee "$JSON_OUT"

@@ -134,9 +134,29 @@ Resolved (5):
   - ...
 ```
 
-### 9. Save result
+### 9. Save results
 
-Write to `~/.figma-differ/<fileKey>/latest-diff-all.md`.
+**JSON** — Save the raw structured output from `bulk-diff.js` (the JSON that `scripts/diff-all.sh` produces) to `~/.figma-differ/<fileKey>/latest-diff-all.json`. This is the primary data file used by the notify skill.
+
+Enrich the JSON before saving: add a `comments` key with the comment delta computed in step 7:
+```json
+{
+  "total": ...,
+  "unchanged": ...,
+  "top": [...],
+  "rest": [...],
+  "comments": {
+    "new": [
+      { "id": "comment-id", "author": "Author Name", "text": "comment text", "nodeId": "2895:40497", "createdAt": "..." }
+    ],
+    "resolved": [
+      { "id": "comment-id", "text": "comment text", "resolvedBy": "Author Name", "nodeId": "2895:40501", "resolvedAt": "..." }
+    ]
+  }
+}
+```
+
+**Markdown** — Also write the human-readable report to `~/.figma-differ/<fileKey>/latest-diff-all.md`.
 
 ### 10. Notify (if --notify)
 

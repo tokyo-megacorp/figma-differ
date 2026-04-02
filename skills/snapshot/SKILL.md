@@ -10,6 +10,7 @@ allowed-tools:
   - Bash
   - Read
   - Write
+  - mcp__claude_ai_Slack__slack_send_message
 ---
 
 ## Snapshot a Figma Node
@@ -68,7 +69,46 @@ bash $CLAUDE_PLUGIN_ROOT/scripts/figma-api.sh fetch_node_png <fileKey> <nodeId> 
 
 If this fails, warn the user but continue — JSON snapshot is still useful for structural diffs.
 
-### 6. Confirm
+### 6. Create Slack parent thread (if configured)
+
+Check if `~/.figma-differ/config.json` exists and has a `slack_channel_id`. If so:
+
+1. Read `~/.figma-differ/<fileKey>/slack-threads.json` (create `{ "channel_id": "<channel_id>", "threads": {} }` if missing)
+2. If the `nodeId` is NOT already in the `threads` registry, create a parent message:
+
+   Infer a semantic emoji from the frame name:
+   - 🔐 `:lock:` — login, sign in, auth
+   - ⚙️ `:gear:` — settings, preferences, config
+   - 👤 `:bust_in_silhouette:` — profile, account, user
+   - 📥 `:inbox_tray:` — inbox, notifications, messages
+   - 💰 `:moneybag:` — net worth, balance, portfolio, finance
+   - 🎁 `:gift:` — gift, rewards, offers, promotions
+   - 📄 `:page_facing_up:` — statements, documents, history
+   - 🛡️ `:shield:` — security, privacy, verification
+   - 🏠 `:house:` — home, dashboard, overview
+   - 🔍 `:mag:` — search, explore, discover
+   - 💳 `:credit_card:` — payments, cards, transactions
+   - 📊 `:bar_chart:` — analytics, reports, charts
+   - 📱 `:iphone:` — default/fallback for any screen
+
+   Build Figma deep-link: `https://www.figma.com/design/<fileKey>/<fileName>?node-id=<nodeId with : replaced by ->`
+
+   To get the frame name and page name, read the node.json that was just saved and check the index if available, or extract from the Figma API response.
+
+   Post via `mcp__claude_ai_Slack__slack_send_message`:
+   - `channel_id`: from config
+   - `message`: `<emoji> *<Frame Name>* · <<figma-deep-link>|Figma> · _<Page Name>_`
+
+   Save the returned `message_ts` to the registry:
+   ```json
+   { "ts": "<message_ts>", "name": "<Frame Name>", "page": "<Page Name>" }
+   ```
+
+   Write the updated `slack-threads.json`.
+
+3. If the `nodeId` is already in threads, skip — parent already exists.
+
+### 7. Confirm
 
 Tell the user:
 ```

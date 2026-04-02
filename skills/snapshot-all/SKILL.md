@@ -11,6 +11,7 @@ allowed-tools:
   - Bash
   - Read
   - Write
+  - mcp__claude_ai_Slack__slack_send_message
 ---
 
 ## Bulk Snapshot All Frames
@@ -80,13 +81,51 @@ mkdir -p "$COMMENT_DIR"
 bash $CLAUDE_PLUGIN_ROOT/scripts/figma-api.sh fetch_comments <fileKey> > "$COMMENT_DIR/<timestamp>.json"
 ```
 
-### 7. Confirm
+### 7. Create Slack parent threads (if configured)
+
+Check if `~/.figma-differ/config.json` exists and has a `slack_channel_id`. If so:
+
+1. Read `~/.figma-differ/<fileKey>/slack-threads.json` (create `{ "channel_id": "<channel_id>", "threads": {} }` if missing)
+2. For each frame in the index that is NOT already in the `threads` registry, create a parent message:
+
+   Infer a semantic emoji from the frame name:
+   - 🔐 `:lock:` — login, sign in, auth
+   - ⚙️ `:gear:` — settings, preferences, config
+   - 👤 `:bust_in_silhouette:` — profile, account, user
+   - 📥 `:inbox_tray:` — inbox, notifications, messages
+   - 💰 `:moneybag:` — net worth, balance, portfolio, finance
+   - 🎁 `:gift:` — gift, rewards, offers, promotions
+   - 📄 `:page_facing_up:` — statements, documents, history
+   - 🛡️ `:shield:` — security, privacy, verification
+   - 🏠 `:house:` — home, dashboard, overview
+   - 🔍 `:mag:` — search, explore, discover
+   - 💳 `:credit_card:` — payments, cards, transactions
+   - 📊 `:bar_chart:` — analytics, reports, charts
+   - 📱 `:iphone:` — default/fallback for any screen
+
+   Build Figma deep-link: `https://www.figma.com/design/<fileKey>/<fileName>?node-id=<nodeId with : replaced by ->`
+
+   Post via `mcp__claude_ai_Slack__slack_send_message`:
+   - `channel_id`: from config
+   - `message`: `<emoji> *<Frame Name>* · <<figma-deep-link>|Figma> · _<Page Name>_`
+
+   Save the returned `message_ts` to the registry:
+   ```json
+   { "ts": "<message_ts>", "name": "<Frame Name>", "page": "<Page Name>" }
+   ```
+
+3. Write the updated `slack-threads.json` after all parent messages are created.
+
+**Rate limit note:** If there are many new frames (e.g. first run with 50+ frames), post parent messages sequentially with no artificial delay — the Slack MCP handles rate limiting. Log progress: `Creating Slack thread for "<Frame Name>"... (M/N)`
+
+### 8. Confirm
 
 ```
 Snapshot complete — <fileName>
   Frames: N snapshots stored
   PNGs: M exported (K failed)
   Comments: C total (U unresolved)
+  Slack threads: T created (S already existed)
   Timestamp: <timestamp>
   Storage: ~/.figma-differ/<fileKey>/
 
@@ -98,4 +137,5 @@ Run /figma-differ:diff-all <url> to check for changes later.
 - 1 call: fetch_file_tree
 - ceil(N/50) calls: batch image export (e.g. 200 frames = 4 calls)
 - 1 call: fetch_comments
-- Total for 200 frames: ~6 API calls
+- N Slack calls: parent thread creation (first run only; subsequent runs = 0)
+- Total for 200 frames: ~6 Figma API calls + up to 200 Slack messages on first run
