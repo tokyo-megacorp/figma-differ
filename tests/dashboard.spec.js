@@ -576,3 +576,104 @@ test.describe('Dashboard v2 — CSS class verification', () => {
     await expect(page.locator('.topbar-meta')).toBeVisible()
   })
 })
+
+test.describe('Dashboard v2 — Comment Threading', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(`file://${HTML_PATH}`)
+  })
+
+  test('data contains comments with parentId for threading', async ({ page }) => {
+    const content = await page.content();
+    const parentIdMatches = content.match(/"parentId":"[^"]+"/g) || [];
+    expect(parentIdMatches.length).toBeGreaterThanOrEqual(3);
+  })
+
+  test('threaded replies have correct parent references', async ({ page }) => {
+    const content = await page.content();
+    expect(content).toContain('"parentId":"1"');
+    expect(content).toContain('"parentId":"3"');
+    expect(content).toContain('"parentId":"5"');
+  })
+
+  test('top-level comments have null parentId', async ({ page }) => {
+    const content = await page.content();
+    expect(content).toContain('"parentId":null');
+  })
+
+  test('reply comments render with comment-reply class', async ({ page }) => {
+    await page.locator('.nav-btn', { hasText: 'comments' }).click();
+    const replies = page.locator('.comment-reply');
+    const count = await replies.count();
+    expect(count).toBeGreaterThanOrEqual(1);
+  })
+})
+
+test.describe('Dashboard v2 — User Avatars', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(`file://${HTML_PATH}`)
+  })
+
+  test('comments have avatarUrl field in DATA', async ({ page }) => {
+    const content = await page.content();
+    const avatarMatches = content.match(/"avatarUrl":"https:\/\//g) || [];
+    expect(avatarMatches.length).toBeGreaterThanOrEqual(4);
+  })
+
+  test('avatar URLs are valid image paths', async ({ page }) => {
+    const content = await page.content();
+    expect(content).toContain('"avatarUrl":"https://example.com/');
+  })
+
+  test('comments with null avatarUrl are identified', async ({ page }) => {
+    const content = await page.content();
+    expect(content).toContain('"avatarUrl":null');
+  })
+
+  test('avatar images render for comments with avatarUrl', async ({ page }) => {
+    await page.locator('.nav-btn', { hasText: 'comments' }).click();
+    const avatars = page.locator('.comment-avatar');
+    const count = await avatars.count();
+    expect(count).toBeGreaterThanOrEqual(1);
+  })
+
+  test('dot fallback renders for comments without avatarUrl', async ({ page }) => {
+    await page.locator('.nav-btn', { hasText: 'comments' }).click();
+    const dots = page.locator('.comment-dot');
+    const count = await dots.count();
+    expect(count).toBeGreaterThanOrEqual(1);
+  })
+})
+
+test.describe('Dashboard v2 — File Metadata', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto(`file://${HTML_PATH}`)
+  })
+
+  test('DATA contains metadata object', async ({ page }) => {
+    const content = await page.content();
+    expect(content).toContain('"metadata":{');
+  })
+
+  test('metadata object has lastModified field', async ({ page }) => {
+    const content = await page.content();
+    expect(content).toContain('"lastModified"');
+  })
+
+  test('metadata object has thumbnailUrl field', async ({ page }) => {
+    const content = await page.content();
+    expect(content).toContain('"thumbnailUrl"');
+  })
+
+  test('metadata object has fileName field', async ({ page }) => {
+    const content = await page.content();
+    expect(content).toContain('"fileName"');
+  })
+
+  test('all metadata fields are inside metadata object', async ({ page }) => {
+    const content = await page.content();
+    expect(content).toContain('"metadata":{');
+    expect(content).toContain('"lastModified"');
+    expect(content).toContain('"thumbnailUrl"');
+    expect(content).toContain('"fileName"');
+  })
+})
