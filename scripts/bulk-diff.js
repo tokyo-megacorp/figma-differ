@@ -158,10 +158,10 @@ function diffFrame(beforeNode, afterNode) {
 
   const isStructural =
     counts.added > 0 || counts.removed > 0 || counts.componentSwaps > 0 ||
-    counts.bboxChanges > 0 || counts.constraintChanges > 0 ||
     counts.visibilityChanges > 0 || counts.layoutChanges > 0
 
   const isCosmetic =
+    counts.bboxChanges > 0 || counts.constraintChanges > 0 ||
     counts.textChanges > 0 || counts.fillChanges > 0 || counts.strokeChanges > 0 ||
     counts.fontChanges > 0 || counts.opacityChanges > 0 || counts.effectChanges > 0
 

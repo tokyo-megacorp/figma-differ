@@ -11,5 +11,6 @@
   "license": "MIT",
   "keywords": ["figma", "design", "diff", "slack", "design-review"],
   "commands": "./commands/",
-  "skills": "./skills/"
+  "skills": "./skills/",
+  "hooks": "./hooks/hooks.json"
 }

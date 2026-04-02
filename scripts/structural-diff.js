@@ -191,12 +191,12 @@ function main() {
     changes.addedNodes.length > 0 ||
     changes.removedNodes.length > 0 ||
     changes.componentSwaps.length > 0 ||
-    changes.bboxChanges.length > 0 ||
-    changes.constraintChanges.length > 0 ||
     changes.visibilityChanges.length > 0 ||
     changes.layoutChanges.length > 0
 
   const isCosmetic =
+    changes.bboxChanges.length > 0 ||
+    changes.constraintChanges.length > 0 ||
     changes.textChanges.length > 0 ||
     changes.fillChanges.length > 0 ||
     changes.strokeChanges.length > 0 ||
