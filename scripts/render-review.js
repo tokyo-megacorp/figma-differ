@@ -107,6 +107,7 @@ function fetchComments() {
       id: c.id,
       message: c.message,
       user: c.user ? c.user.handle : 'unknown',
+      avatarUrl: c.user ? (c.user.img_url || null) : null,
       createdAt: c.created_at,
       resolvedAt: c.resolved_at || null,
       nodeId: c.client_meta ? c.client_meta.node_id : null,
@@ -117,6 +118,26 @@ function fetchComments() {
   } catch (e) {
     console.error(`WARN: failed to fetch comments: ${e.message}`)
     return []
+  }
+}
+
+function fetchFileMetadata() {
+  const scriptDir = path.dirname(process.argv[1])
+  const apiScript = path.join(scriptDir, 'figma-api.sh')
+  try {
+    const result = execSync(
+      `bash "${apiScript}" fetch_file_tree "${fileKey}" 1`,
+      { encoding: 'utf8', timeout: 120000 }
+    )
+    const data = JSON.parse(result)
+    return {
+      lastModified: data.lastModified || null,
+      thumbnailUrl: data.thumbnailUrl || null,
+      fileName: data.name || null
+    }
+  } catch (e) {
+    console.error(`WARN: failed to fetch file metadata: ${e.message}`)
+    return { lastModified: null, thumbnailUrl: null, fileName: null }
   }
 }
 
@@ -157,6 +178,9 @@ function main() {
     console.error(`Fetched ${comments.length} comments`)
   }
 
+  // Fetch file metadata (lastModified, thumbnailUrl, fileName)
+  const metadata = fetchFileMetadata()
+
   // Build the embedded data object
   const embeddedData = {
     index,
@@ -164,6 +188,7 @@ function main() {
     diffs: allDiffs,
     imageUrls,
     comments,
+    metadata,
     generatedAt: new Date().toISOString()
   }
 
@@ -563,6 +588,10 @@ function generateHtml(data) {
     .comment-resolved-tag { color: var(--text-secondary); font-size: 11px; }
     .comment-section-label { font-size: 11px; text-transform: uppercase; color: var(--text-secondary); margin: 8px 0 12px; }
     .comment-empty { color: var(--text-secondary); margin-top: 24px; }
+    .comment-reply { margin-left: 28px; }
+    .comment-avatar { width: 24px; height: 24px; border-radius: 50%; object-fit: cover; flex-shrink: 0; margin-top: 2px; }
+    .header-thumbnail { width: 40px; height: 40px; border-radius: 4px; object-fit: cover; flex-shrink: 0; }
+    .header-last-modified { font-size: 11px; color: var(--text-secondary); margin-top: 2px; }
 
     /* ── Filter select ────────────────────────────────────────── */
     .filter-select {
@@ -726,9 +755,20 @@ function renderIndex() {
   const idx = DATA.index;
   const reviews = DATA.reviews;
 
+  const meta = DATA.metadata || {};
   let html = '<div class="header">';
+  html += '<div style="display:flex;align-items:center;gap:10px">';
+  if (meta.thumbnailUrl) {
+    html += '<img class="header-thumbnail" src="' + escapeHtml(meta.thumbnailUrl) + '" alt="thumbnail">';
+  }
+  html += '<div>';
   html += '<div><span class="header-title">fig-diff</span> ';
-  html += '<span class="header-meta">' + escapeHtml(idx.fileName || idx.fileKey) + '</span></div>';
+  html += '<span class="header-meta">' + escapeHtml(meta.fileName || idx.fileName || idx.fileKey) + '</span></div>';
+  if (meta.lastModified) {
+    html += '<div class="header-last-modified">Last modified ' + formatIsoDate(meta.lastModified) + '</div>';
+  }
+  html += '</div>';
+  html += '</div>';
   html += '<span class="header-meta">' + idx.frames.length + ' frames tracked</span>';
   html += '</div>';
 
@@ -1039,10 +1079,23 @@ function renderDetail(nodeId) {
   if (frameComments.length > 0) {
     html += '<div style="border-top:1px solid var(--border);padding-top:12px;margin-top:16px">';
     html += '<div class="change-group-header">Comments on this frame (' + frameComments.length + ')</div>';
-    for (const c of frameComments.sort((a, b) => b.createdAt.localeCompare(a.createdAt))) {
+    // Build reply map for inline frame comments
+    const frameRepliesMap = {};
+    for (const c of frameComments) {
+      if (c.parentId) {
+        if (!frameRepliesMap[c.parentId]) frameRepliesMap[c.parentId] = [];
+        frameRepliesMap[c.parentId].push(c);
+      }
+    }
+    const frameTopLevel = frameComments.filter(c => !c.parentId).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    for (const c of frameTopLevel) {
       const resolved = c.resolvedAt ? ' · resolved' : '';
       html += '<div class="comment-item">';
-      html += '<div class="comment-dot"></div>';
+      if (c.avatarUrl) {
+        html += '<img class="comment-avatar" src="' + escapeHtml(c.avatarUrl) + '" alt="' + escapeHtml(c.user) + '">';
+      } else {
+        html += '<div class="comment-dot"></div>';
+      }
       html += '<div class="comment-body">';
       html += '<div class="comment-header">';
       html += '<span class="comment-author" style="font-size:13px">' + escapeHtml(c.user) + '<span class="comment-resolved-tag">' + resolved + '</span></span>';
@@ -1050,6 +1103,24 @@ function renderDetail(nodeId) {
       html += '</div>';
       html += '<p class="timeline-comment-body">"' + escapeHtml(c.message) + '"</p>';
       html += '</div></div>';
+      // Render replies indented
+      const replies = (frameRepliesMap[c.id] || []).slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      for (const r of replies) {
+        const rResolved = r.resolvedAt ? ' · resolved' : '';
+        html += '<div class="comment-item comment-reply">';
+        if (r.avatarUrl) {
+          html += '<img class="comment-avatar" src="' + escapeHtml(r.avatarUrl) + '" alt="' + escapeHtml(r.user) + '">';
+        } else {
+          html += '<div class="comment-dot"></div>';
+        }
+        html += '<div class="comment-body">';
+        html += '<div class="comment-header">';
+        html += '<span class="comment-author" style="font-size:13px">' + escapeHtml(r.user) + '<span class="comment-resolved-tag">' + rResolved + '</span></span>';
+        html += '<span class="comment-date">' + formatIsoDate(r.createdAt) + '</span>';
+        html += '</div>';
+        html += '<p class="timeline-comment-body">"' + escapeHtml(r.message) + '"</p>';
+        html += '</div></div>';
+      }
     }
     html += '</div>';
   }
@@ -1159,9 +1230,13 @@ function renderComments() {
 
   html += '<div class="content">';
 
-  function renderCommentItem(c, dimmed) {
-    let h = '<div class="comment-item' + (dimmed ? ' dimmed' : '') + '">';
-    h += '<div class="comment-dot"></div>';
+  function renderCommentItem(c, dimmed, extraClass) {
+    let h = '<div class="comment-item' + (dimmed ? ' dimmed' : '') + (extraClass ? ' ' + extraClass : '') + '">';
+    if (c.avatarUrl) {
+      h += '<img class="comment-avatar" src="' + escapeHtml(c.avatarUrl) + '" alt="' + escapeHtml(c.user) + '">';
+    } else {
+      h += '<div class="comment-dot"></div>';
+    }
     h += '<div class="comment-body">';
     h += '<div class="comment-header">';
     h += '<div><span class="comment-author">' + escapeHtml(c.user) + '</span>';
@@ -1174,13 +1249,34 @@ function renderComments() {
     return h;
   }
 
-  if (unresolved.length > 0) {
-    for (const c of unresolved) html += renderCommentItem(c, false);
+  function renderThread(topLevel, repliesMap, dimmed) {
+    let h = renderCommentItem(topLevel, dimmed, null);
+    const replies = (repliesMap[topLevel.id] || []).slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+    for (const r of replies) h += renderCommentItem(r, dimmed, 'comment-reply');
+    return h;
   }
 
-  if (resolved.length > 0) {
+  // Build reply map (id -> replies[])
+  const allComments = comments;
+  const repliesMap = {};
+  for (const c of allComments) {
+    if (c.parentId) {
+      if (!repliesMap[c.parentId]) repliesMap[c.parentId] = [];
+      repliesMap[c.parentId].push(c);
+    }
+  }
+
+  // Only show top-level comments in the main list; replies render inline under parent
+  const unresolvedTopLevel = unresolved.filter(c => !c.parentId);
+  const resolvedTopLevel = resolved.filter(c => !c.parentId);
+
+  if (unresolvedTopLevel.length > 0) {
+    for (const c of unresolvedTopLevel) html += renderThread(c, repliesMap, false);
+  }
+
+  if (resolvedTopLevel.length > 0) {
     html += '<div class="comment-section-label">Resolved</div>';
-    for (const c of resolved) html += renderCommentItem(c, true);
+    for (const c of resolvedTopLevel) html += renderThread(c, repliesMap, true);
   }
 
   if (unresolved.length === 0 && resolved.length === 0) {
@@ -1243,7 +1339,11 @@ function renderTimeline() {
 
     } else {
       html += '<div class="timeline-entry">';
-      html += '<div class="timeline-dot timeline-dot-comment"></div>';
+      if (ev.avatarUrl) {
+        html += '<img class="comment-avatar timeline-dot" src="' + escapeHtml(ev.avatarUrl) + '" alt="' + escapeHtml(ev.user) + '" style="border-radius:50%;width:24px;height:24px;object-fit:cover;flex-shrink:0;">';
+      } else {
+        html += '<div class="timeline-dot timeline-dot-comment"></div>';
+      }
       html += '<div class="timeline-comment-card">';
       html += '<div class="comment-header">';
       html += '<div><span class="comment-author">' + escapeHtml(ev.user) + '</span>';
