@@ -24,7 +24,7 @@ Parse flags: `--notify` (post to Slack after), `--top N` (default 10, how many d
 
 ### 2. Check prerequisites
 
-- Verify `FIGMA_TOKEN` is set
+- Verify a Figma token is loadable: `bash scripts/auth.sh status` (if it fails, tell the user to run `bash scripts/auth.sh set` and stop)
 - Check index exists at `~/.figma-differ/<fileKey>/index.json`
 - Check at least one snapshot exists (look for any `node.json` under `~/.figma-differ/<fileKey>/`)
 - If no index or no snapshots: tell user to run `/figma-differ:snapshot-all <url>` first

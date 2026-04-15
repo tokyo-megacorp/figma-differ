@@ -22,7 +22,7 @@ Extract `fileKey` from the Figma URL (`https://www.figma.com/design/<fileKey>/..
 
 ### 2. Check prerequisites
 
-- Verify `FIGMA_TOKEN` is set
+- Verify a Figma token is loadable: `bash scripts/auth.sh status` (if it fails, tell the user to run `bash scripts/auth.sh set` and stop)
 - Always refresh the index first (re-run the index workflow: fetch tree, walk, write index.json) to catch new frames added since last run
 - After indexing, if the frames array in `index.json` is empty, stop and tell the user the file has no indexable frames
 

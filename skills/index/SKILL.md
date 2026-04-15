@@ -20,7 +20,7 @@ Extract `fileKey` from the Figma URL. Node ID is not needed — we're indexing t
 
 ### 2. Check prerequisites
 
-Verify `FIGMA_TOKEN` is set (error if not).
+Verify a Figma token is loadable: `bash scripts/auth.sh status` (if it fails, tell the user to run `bash scripts/auth.sh set` and stop).
 
 ### 3. Fetch the full file tree
 

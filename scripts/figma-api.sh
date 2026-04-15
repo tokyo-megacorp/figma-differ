@@ -1,11 +1,16 @@
 #!/usr/bin/env bash
 # Figma REST API helper for figma-differ
 # Usage: figma-api.sh <command> [args...]
-# Requires: FIGMA_TOKEN env var, curl, jq
+# Token: loaded via scripts/lib/token.sh — $FIGMA_TOKEN env var, then
+#        ~/.figma-differ/.env (mode 0600). Set via: bash scripts/auth.sh set
 
 set -euo pipefail
 
 FIGMA_API="https://api.figma.com/v1"
+
+_FIGMA_API_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib/token.sh
+source "${_FIGMA_API_SCRIPT_DIR}/lib/token.sh"
 
 _check_deps() {
   for cmd in curl jq; do
@@ -17,13 +22,7 @@ _check_deps() {
 }
 
 _check_token() {
-  if [[ -z "${FIGMA_TOKEN:-}" && -f "/tmp/.figma-token" ]]; then
-    FIGMA_TOKEN=$(cat /tmp/.figma-token)
-  fi
-  if [[ -z "${FIGMA_TOKEN:-}" ]]; then
-    echo "ERROR: FIGMA_TOKEN env var not set" >&2
-    exit 1
-  fi
+  load_figma_token || exit 1
 }
 
 _url_encode_node_id() {

@@ -23,15 +23,12 @@ Extract `fileKey` and `nodeId` from the Figma URL:
 
 ### 2. Check prerequisites
 
-Verify `FIGMA_TOKEN` is set:
+Verify the Figma token is loadable (via `$FIGMA_TOKEN` env var or `~/.figma-differ/.env`):
 ```bash
-if [[ -z "${FIGMA_TOKEN:-}" ]]; then
-  echo "ERROR: FIGMA_TOKEN is not set. Add it to your environment: export FIGMA_TOKEN=your_token"
-  exit 1
-fi
+bash scripts/auth.sh status || { echo "ERROR: no Figma token. Run: bash scripts/auth.sh set"; exit 1; }
 ```
 
-Get your Figma personal access token at: https://www.figma.com/settings → Personal access tokens.
+Get your Figma personal access token at: https://www.figma.com/settings → Personal access tokens. Save it with `bash scripts/auth.sh set` (prompts, verifies, writes to `~/.figma-differ/.env` at mode 600).
 
 ### 3. Create snapshot directory
 

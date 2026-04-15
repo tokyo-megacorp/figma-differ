@@ -4,12 +4,31 @@ A Claude Code plugin that snapshots Figma nodes, diffs design changes structural
 
 ## Prerequisites
 
+Requires `curl` and `jq` on `PATH`.
+
+### Figma token (one-time)
+
+Get a personal access token at figma.com/settings → **Personal access tokens**, then:
+
 ```bash
-export FIGMA_TOKEN='your_personal_access_token'     # figma.com/settings → Personal access tokens
-export FIGMA_DIFFER_SLACK_CHANNEL='#design-reviews' # for Slack notifications
+bash scripts/auth.sh set           # prompts (input hidden), verifies, saves
+bash scripts/auth.sh status        # show active source + masked tail
+bash scripts/auth.sh doctor        # re-verify against /v1/me
+bash scripts/auth.sh clear         # remove the stored token
 ```
 
-Requires `curl` and `jq` on `PATH`.
+The token is stored at `~/.figma-differ/.env` with mode `600`. Lookup order:
+
+1. `$FIGMA_TOKEN` env var (explicit override, per-invocation)
+2. `~/.figma-differ/.env`
+
+This survives shell restarts and reboots, and is readable from the sandboxed subagent context. The old `/tmp/.figma-token` fallback has been removed — `auth.sh set` auto-migrates it on first run if found.
+
+### Optional
+
+```bash
+export FIGMA_DIFFER_SLACK_CHANNEL='#design-reviews'  # for /figma-differ:notify
+```
 
 ---
 

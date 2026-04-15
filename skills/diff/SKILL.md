@@ -23,7 +23,7 @@ Check for `--notify` flag in arguments.
 
 ### 2. Check prerequisites
 
-- Verify `FIGMA_TOKEN` is set (error if not)
+- Verify a Figma token is loadable: `bash scripts/auth.sh status` (if it fails, tell the user to run `bash scripts/auth.sh set` and stop)
 - Find latest snapshot: `ls -t ~/.figma-differ/<fileKey>/<nodeId_safe>/` — take the first result
 - If no snapshot exists: tell user to run `/figma-differ:snapshot <url>` first, then stop
 
