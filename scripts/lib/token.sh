@@ -40,6 +40,10 @@ _token_read_file() {
   [[ -f "${FIGMA_DIFFER_ENV_FILE}" ]] || return 1
   local line value
   while IFS= read -r line || [[ -n "$line" ]]; do
+    # Strip trailing CR so CRLF-saved files (VS Code on Windows/WSL, Notepad,
+    # cross-machine sync) don't carry \r into the token — which produces a
+    # silent 403 from Figma when \r ends up in the X-Figma-Token header.
+    line="${line%$'\r'}"
     case "$line" in
       ''|\#*) continue ;;
     esac

@@ -28,6 +28,9 @@ _verify_token() {
   local body http_code
   local tmp
   tmp=$(mktemp)
+  # RETURN trap cleans up the response body on every exit path — including
+  # SIGINT during the curl, so we don't leak the /v1/me body in /tmp.
+  trap 'rm -f "$tmp"' RETURN
   http_code=$(curl -s --max-time 20 \
     -H "X-Figma-Token: ${token}" \
     -o "$tmp" -w '%{http_code}' \
@@ -37,7 +40,6 @@ _verify_token() {
     local handle email
     handle=$(jq -r '.handle // empty' "$tmp" 2>/dev/null)
     email=$(jq -r '.email // empty' "$tmp" 2>/dev/null)
-    rm -f "$tmp"
     printf 'OK — authenticated as %s <%s>\n' "${handle:-?}" "${email:-?}"
     return 0
   fi
@@ -47,7 +49,6 @@ _verify_token() {
     head -c 400 "$tmp" >&2
     echo >&2
   fi
-  rm -f "$tmp"
   return 1
 }
 
