@@ -50,6 +50,13 @@ TaskCreate("Generate change report",  activeForm: "Ranking changes by severity..
 4. After each phase returns: `TaskUpdate(taskId, status: "completed")`
 5. After ALL phases: verify no tasks left in_progress — every task must be completed or deleted before the final summary
 
+### Data discipline
+
+- NEVER keep raw API responses, JSON trees, or large frame content in the conversation context
+- ALWAYS write intermediate data to disk (temp files or `~/.figma-differ/`)
+- Subagent prompts MUST include: "Write results to <path>. Report only counts and file paths."
+- Final summary to user: counts, paths, and actionable next steps only
+
 ### 3. Fetch current file tree (1 API call)
 
 Pipe directly to a temp file (do NOT store in shell variable — file trees can be 10-30MB):

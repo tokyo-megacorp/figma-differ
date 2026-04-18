@@ -30,6 +30,13 @@ bash scripts/auth.sh status || { echo "ERROR: no Figma token. Run: bash scripts/
 
 Get your Figma personal access token at: https://www.figma.com/settings → Personal access tokens. Save it with `bash scripts/auth.sh set` (prompts, verifies, writes to `~/.figma-differ/.env` at mode 600).
 
+### Data discipline
+
+- NEVER keep raw API responses, JSON trees, or large frame content in the conversation context
+- ALWAYS write intermediate data to disk (temp files or `~/.figma-differ/`)
+- Subagent prompts MUST include: "Write results to <path>. Report only counts and file paths."
+- Final summary to user: counts, paths, and actionable next steps only
+
 ### 3. Create snapshot directory
 
 Derive `nodeId_safe` by replacing `:` with `_` (filesystem-safe): `2895:40497` → `2895_40497`.

@@ -38,6 +38,13 @@ TaskCreate("Update search index",   activeForm: "Indexing frames for semantic se
 
 Execute each phase sequentially — each depends on the previous. Mark tasks `in_progress` before starting, `completed` when done.
 
+### Data discipline
+
+- NEVER keep raw API responses, JSON trees, or large frame content in the conversation context
+- ALWAYS write intermediate data to disk (temp files or `~/.figma-differ/`)
+- Subagent prompts MUST include: "Write results to <path>. Report only counts and file paths."
+- Final summary to user: counts, paths, and actionable next steps only
+
 ### 3. Phase execution
 
 **Task lifecycle:**

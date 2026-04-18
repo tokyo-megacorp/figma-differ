@@ -49,6 +49,13 @@ TaskCreate("Store Figma comments",  activeForm: "Downloading comment threads..."
 4. After agent returns: `TaskUpdate(taskId, status: "completed")`
 5. After ALL phases: verify no tasks left in_progress — every task must be completed or deleted before the final summary
 
+### Data discipline
+
+- NEVER keep raw API responses, JSON trees, or large frame content in the conversation context
+- ALWAYS write intermediate data to disk (temp files or `~/.figma-differ/`)
+- Subagent prompts MUST include: "Write results to <path>. Report only counts and file paths."
+- Final summary to user: counts, paths, and actionable next steps only
+
 ### 3. Fetch the full file tree (1 API call)
 
 Pipe directly to a temp file (do NOT store in shell variable — file trees can be 10-30MB):

@@ -240,10 +240,23 @@ server.tool(
     for (const fk of fileKeys) {
       const md = findFrameMd(fk, normalizedId)
       if (md) {
+        const text = summary ? summarizeFrameMd(md) : md
+
+        // Check for thin content — nudge agent to enrich via Figma MCP bridge
+        const fm = parseFrontmatter(md)
+        const nodeCount = parseInt(fm.node_count || '0', 10)
+        const desc = fm.description || ''
+        const isThin = nodeCount <= 1 || desc.length < 30 || desc === 'screen' || /^(light|dark) mode screen$/.test(desc)
+
+        if (isThin) {
+          const hint = `\n\n---\nThis frame has shallow data (${nodeCount} node${nodeCount !== 1 ? 's' : ''}). For richer content:\n1. Call Figma MCP get_design_context(fileKey: "${fm.figma_file || ''}", nodeId: "${fm.figma_node || ''}")\n2. Call figma-differ save with extracted components and text content\nThis will enrich the frame for future searches.`
+          return { content: [{ type: 'text', text: text + hint }] }
+        }
+
         return {
           content: [{
             type: 'text',
-            text: summary ? summarizeFrameMd(md) : md,
+            text,
           }],
         }
       }

@@ -27,6 +27,13 @@ Check for `--notify` flag in arguments.
 - Find latest snapshot: `ls -t ~/.figma-differ/<fileKey>/<nodeId_safe>/` — take the first result
 - If no snapshot exists: tell user to run `/figma-differ:snapshot <url>` first, then stop
 
+### Data discipline
+
+- NEVER keep raw API responses, JSON trees, or large frame content in the conversation context
+- ALWAYS write intermediate data to disk (temp files or `~/.figma-differ/`)
+- Subagent prompts MUST include: "Write results to <path>. Report only counts and file paths."
+- Final summary to user: counts, paths, and actionable next steps only
+
 ### 3. Fetch current state into a temp directory
 
 ```bash

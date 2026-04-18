@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Inject MCP routing instructions — tells the agent to use figma-differ MCP tools
-# instead of raw qmd CLI or manual Bash commands.
+# Inject MCP routing + data discipline instructions per turn
 cat <<'INSTRUCTIONS'
-figma-differ MCP: When searching Figma frames, checking flows, or saving designs, use the figma-differ MCP tools (search, get_frame, get_flows, list_frames, save) — NOT raw `qmd` CLI commands. The MCP wraps QMD and adds Figma-specific context. Use Figma MCP (get_design_context) for live fetches, then figma-differ save to cache locally.
+figma-differ MCP: Use figma-differ tools (search, get_frame, get_flows, list_frames, save) for Figma frame queries — NOT raw qmd CLI. Use Figma MCP (get_design_context) for live fetches, then figma-differ save to cache locally.
+Save discipline: Write API responses and large data to disk (~/.figma-differ/), never keep raw JSON in conversation context. Report only counts and file paths.
 INSTRUCTIONS

@@ -41,6 +41,13 @@ TaskCreate("Catalog all frames",    activeForm: "Walking pages and extracting fr
 4. After agent returns: `TaskUpdate(taskId, status: "completed")`
 5. After ALL phases: verify no tasks left in_progress — every task must be completed or deleted before the final summary
 
+### Data discipline
+
+- NEVER keep raw API responses, JSON trees, or large frame content in the conversation context
+- ALWAYS write intermediate data to disk (temp files or `~/.figma-differ/`)
+- Subagent prompts MUST include: "Write results to <path>. Report only counts and file paths."
+- Final summary to user: counts, paths, and actionable next steps only
+
 ### 3. Fetch the full file tree
 
 ```bash
