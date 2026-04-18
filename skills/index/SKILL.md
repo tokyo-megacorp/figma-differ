@@ -11,6 +11,8 @@ allowed-tools:
   - Read
   - Write
   - Agent
+  - TaskCreate
+  - TaskUpdate
 ---
 
 ## Index All Frames in a Figma File
@@ -23,11 +25,16 @@ Extract `fileKey` from the Figma URL. Node ID is not needed — we're indexing t
 
 Verify a Figma token is loadable: `bash scripts/auth.sh status` (if it fails, tell the user to run `bash scripts/auth.sh set` and stop).
 
-### 2.5. Execution shape
+### 2.5. Orchestration
 
-- Use a subagent for the heavy tree walk / manifest write so the full file-tree payload does not flood the main conversation.
-- Keep user-facing updates concise: `Fetching tree`, `Walking nodes`, `Writing index`.
-- When available, mirror those milestones into task/progress tracking instead of streaming raw traversal output to the main thread.
+Create tasks per phase. Dispatch haiku subagent for the tree fetch + frame walk.
+
+```
+TaskCreate("Fetch file tree",       activeForm: "Fetching <fileName> from Figma API...")
+TaskCreate("Catalog all frames",    activeForm: "Walking pages and extracting frames...")
+```
+
+Each phase: mark in_progress, dispatch Agent(model: "haiku"), mark completed. Agent reports frame count only.
 
 ### 3. Fetch the full file tree
 

@@ -13,6 +13,8 @@ allowed-tools:
   - Read
   - Write
   - Agent
+  - TaskCreate
+  - TaskUpdate
 ---
 
 ## Bulk Diff All Frames Against Stored Snapshots
@@ -28,6 +30,20 @@ Parse flags: `--notify` (post to Slack after), `--top N` (default 10, how many d
 - Check index exists at `~/.figma-differ/<fileKey>/index.json`
 - Check at least one snapshot exists (look for any `node.json` under `~/.figma-differ/<fileKey>/`)
 - If no index or no snapshots: tell user to run `/figma-differ:snapshot-all <url>` first
+
+### Orchestration
+
+Create tasks per phase. Use haiku subagents for mechanical steps (fetch, structural diff). Reserve main model for vision analysis and report synthesis.
+
+```
+TaskCreate("Fetch current state",     activeForm: "Fetching latest frames from Figma API...")
+TaskCreate("Detect structural changes", activeForm: "Comparing node trees against baselines...")
+TaskCreate("Detect visual changes",   activeForm: "Comparing screenshots via Claude vision...")
+TaskCreate("Check comment changes",   activeForm: "Comparing comment threads since last snapshot...")
+TaskCreate("Generate change report",  activeForm: "Ranking changes by severity...")
+```
+
+Execute sequentially. Structural diff and comment delta can use haiku. Vision analysis uses the main model (needs image understanding).
 
 ### 3. Fetch current file tree (1 API call)
 
@@ -65,9 +81,6 @@ For frames that differ (from step 4):
 2. Collect result: severity + changes
 
 LLM cost is proportional to actual changes, not total frames.
-
-Keep the main conversation to progress updates and final summaries only. Raw diff payloads and intermediate JSON should stay in the agent lanes.
-When task/progress tracking is available, use it for milestones such as `Splitting current tree`, `Structural diff`, `Vision diff`, `Comment delta`, and `Writing reports`.
 
 ### 6. Vision analysis — structurally changed frames only
 

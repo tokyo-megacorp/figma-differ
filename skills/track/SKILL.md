@@ -13,6 +13,8 @@ allowed-tools:
   - Write
   - Skill
   - Agent
+  - TaskCreate
+  - TaskUpdate
 ---
 
 ## Track a Figma File
@@ -25,11 +27,20 @@ Extract `fileKey` from the Figma URL (`https://www.figma.com/design/<fileKey>/..
 
 Verify a Figma token is loadable: `bash $CLAUDE_PLUGIN_ROOT/scripts/auth.sh status` (if it fails, tell the user to run `bash $CLAUDE_PLUGIN_ROOT/scripts/auth.sh set` and stop).
 
-### 2.5. Execution shape
+### 2.5. Orchestration
 
-- Fork long-running bootstrap work (`index`, `snapshot-all`, `frame.md`, search refresh) into subagents so the main conversation stays concise.
-- Report progress in short steps: `Indexing`, `Snapshotting`, `Generating docs`, `Updating search`.
-- When task/progress tracking exists in the host, mirror those milestones there instead of narrating every internal command inline.
+Create tasks per phase. Dispatch haiku subagents — raw output stays forked.
+
+```
+TaskCreate("Register tracked file",   activeForm: "Adding <fileName> to tracked files...")
+TaskCreate("Index all frames",        activeForm: "Cataloging frames and sections...")
+TaskCreate("Snapshot all frames",     activeForm: "Fetching node.json + PNGs for <N> frames...")
+TaskCreate("Extract screen flows",    activeForm: "Mapping connector lines and transitions...")
+TaskCreate("Generate frame docs",     activeForm: "Extracting text, colors, buttons, layout...")
+TaskCreate("Enable semantic search",  activeForm: "Indexing frames for semantic search...")
+```
+
+Execute sequentially. Each phase: mark in_progress, dispatch Agent(model: "haiku"), mark completed.
 
 ### 3. Read or create tracked.json
 

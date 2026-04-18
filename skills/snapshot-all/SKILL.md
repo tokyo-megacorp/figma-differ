@@ -12,6 +12,8 @@ allowed-tools:
   - Read
   - Write
   - Agent
+  - TaskCreate
+  - TaskUpdate
   - mcp__claude_ai_Slack__slack_send_message
 ---
 
@@ -27,12 +29,20 @@ Extract `fileKey` from the Figma URL (`https://www.figma.com/design/<fileKey>/..
 - Always refresh the index first (re-run the index workflow: fetch tree, walk, write index.json) to catch new frames added since last run
 - After indexing, if the frames array in `index.json` is empty, stop and tell the user the file has no indexable frames
 
-### 2.5. Execution shape
+### 2.5. Orchestration
 
-- Fork long-running mechanical work into subagents so raw tree/JSON output stays out of the main conversation.
-- Keep the user-facing thread to concise progress updates such as: `Fetching tree`, `Splitting frames`, `Exporting PNGs`, `Generating frame.md`, `Updating search index`.
-- When task/progress tracking primitives are available, reflect those same milestones there instead of narrating every low-level step inline.
-- Reserve the main model for interpretation and final summaries; use lighter-weight execution lanes for deterministic batching when available.
+Create tasks for each phase. Dispatch haiku subagents per phase — raw output stays forked.
+
+```
+TaskCreate("Fetch file tree",       activeForm: "Fetching <fileName> from Figma API...")
+TaskCreate("Split frame snapshots", activeForm: "Extracting <N> frame subtrees...")
+TaskCreate("Export frame PNGs",     activeForm: "Exporting <N> screenshots in batches...")
+TaskCreate("Generate frame docs",   activeForm: "Extracting text, colors, buttons, layout...")
+TaskCreate("Update search index",   activeForm: "Indexing frames for semantic search...")
+TaskCreate("Store Figma comments",  activeForm: "Downloading comment threads...")
+```
+
+Execute sequentially. Each phase: mark task in_progress, dispatch Agent(model: "haiku"), mark completed. Agent reports only counts.
 
 ### 3. Fetch the full file tree (1 API call)
 

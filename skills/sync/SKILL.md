@@ -12,6 +12,8 @@ allowed-tools:
   - Write
   - Skill
   - Agent
+  - TaskCreate
+  - TaskUpdate
 ---
 
 ## Sync Tracked Figma Files
@@ -22,60 +24,85 @@ allowed-tools:
 
 **If no URL:** read `~/.figma-differ/tracked.json` and sync all tracked files. If no tracked files exist, tell the user to run `/figma-differ:track <url>` first.
 
-### 2. For each file to sync
+### 2. Orchestration pattern
 
-Keep long-running refresh steps in forked execution lanes where possible so the main conversation only reports progress and final counts.
-When task/progress tracking is available, use it for milestones such as `Re-indexing`, `Re-snapshotting`, `Generating docs`, and `Refreshing search`.
-
-#### 2a. Re-index
-
-Invoke `/figma-differ:index <url>` to discover any new frames.
-
-#### 2b. Fetch current state
-
-Run the snapshot-all workflow to update all frames:
-
-Invoke `/figma-differ:snapshot-all <url>` to re-snapshot all frames.
-
-#### 2c. Extract screen flows
-
-```bash
-TREE_FILE="/tmp/figma-tree-<fileKey>-$$.json"
-if [[ ! -f "$TREE_FILE" ]]; then
-  bash $CLAUDE_PLUGIN_ROOT/scripts/figma-api.sh fetch_file_tree <fileKey> > "$TREE_FILE"
-fi
-node $CLAUDE_PLUGIN_ROOT/scripts/extract-flows.js <fileKey> "$TREE_FILE"
-rm -f "$TREE_FILE"
-```
-
-#### 2d. Generate frame.md documents
-
-```bash
-node $CLAUDE_PLUGIN_ROOT/scripts/generate-frame-md.js <fileKey>
-```
-
-#### 2e. Update QMD index
-
-```bash
-source $CLAUDE_PLUGIN_ROOT/scripts/lib/qmd.sh
-qmd_reindex
-```
-
-#### 2f. Update tracked.json
-
-Set `lastSynced` to the current ISO 8601 timestamp for this file.
-
-### 3. Report
+For each file, create tasks and dispatch haiku subagents per phase. The main conversation shows only task progress and a final summary. Raw output stays in forked agents.
 
 ```
-Sync complete — N file(s)
+TaskCreate("Fetch file tree",       activeForm: "Fetching <fileName> from Figma API...")
+TaskCreate("Index all frames",      activeForm: "Cataloging frames and sections...")
+TaskCreate("Extract screen flows",  activeForm: "Mapping connector lines and transitions...")
+TaskCreate("Generate frame docs",   activeForm: "Extracting text, colors, buttons, layout...")
+TaskCreate("Update search index",   activeForm: "Indexing frames for semantic search...")
+```
 
-<fileName> (<fileKey>)
-  Frames: F total (N new)
-  Frame docs: G generated
-  QMD index: updated | skipped (qmd not installed)
+Execute each phase sequentially — each depends on the previous. Mark tasks `in_progress` before starting, `completed` when done.
+
+### 3. Phase execution
+
+Each phase dispatches an `Agent(model: "haiku")` subagent. The agent runs the commands and reports only counts — never raw JSON or file contents.
+
+#### Phase 1: Fetch file tree
+
+```
+Agent(model: "haiku", prompt: "
+  Fetch the Figma file tree for <fileKey>.
+  Run: bash $CLAUDE_PLUGIN_ROOT/scripts/figma-api.sh fetch_file_tree <fileKey> > /tmp/figma-tree-<fileKey>.json
+  Report: file size in bytes
+")
+```
+
+#### Phase 2: Index frames
+
+```
+Agent(model: "haiku", prompt: "
+  Walk /tmp/figma-tree-<fileKey>.json and extract FRAME/SECTION/COMPONENT_SET nodes.
+  Write ~/.figma-differ/<fileKey>/index.json.
+  Report: total frame count
+")
+```
+
+#### Phase 3: Extract flows
+
+```
+Agent(model: "haiku", prompt: "
+  Run: node $CLAUDE_PLUGIN_ROOT/scripts/extract-flows.js <fileKey> /tmp/figma-tree-<fileKey>.json
+  Report: connector count, prototype count, frames with flows
+")
+```
+
+#### Phase 4: Generate frame docs
+
+```
+Agent(model: "haiku", prompt: "
+  Run: node $CLAUDE_PLUGIN_ROOT/scripts/generate-frame-md.js <fileKey>
+  Report: generated count, skipped count
+")
+```
+
+#### Phase 5: Update search index
+
+```
+Agent(model: "haiku", prompt: "
+  Run: source $CLAUDE_PLUGIN_ROOT/scripts/lib/qmd.sh && qmd_reindex
+  Report: new docs indexed, chunks embedded
+")
+```
+
+After all phases: clean up temp tree file, update `tracked.json` with `lastSynced` timestamp.
+
+### 4. Report
+
+After all tasks complete, print a single summary:
+
+```
+Sync complete — <fileName> (<fileKey>)
+  Frames: F indexed
+  Flows: C connectors, P prototype
+  Docs: G generated (S skipped)
+  Search: N new chunks embedded
   Last synced: <timestamp>
 
-Run /figma-differ:search "query" to find frames.
-Run /figma-differ:diff-all <url> to check for changes.
+/figma-differ:search "query" to find frames
+/figma-differ:diff-all <url> to check changes
 ```
