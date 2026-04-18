@@ -62,13 +62,27 @@ After indexing, read `~/.figma-differ/<fileKey>/index.json` to get the `fileName
 
 Invoke `/figma-differ:snapshot-all <url>` to baseline all frames.
 
-### 7. Generate frame.md documents
+### 7. Extract screen flows
+
+The index step fetched the file tree to a temp file. If that file still exists, extract flow connections. Otherwise fetch a fresh tree:
+
+```bash
+TREE_FILE="/tmp/figma-tree-<fileKey>-$$.json"
+# Re-use tree from index/snapshot-all if available, otherwise fetch
+if [[ ! -f "$TREE_FILE" ]]; then
+  bash $CLAUDE_PLUGIN_ROOT/scripts/figma-api.sh fetch_file_tree <fileKey> > "$TREE_FILE"
+fi
+node $CLAUDE_PLUGIN_ROOT/scripts/extract-flows.js <fileKey> "$TREE_FILE"
+rm -f "$TREE_FILE"
+```
+
+### 8. Generate frame.md documents
 
 ```bash
 node $CLAUDE_PLUGIN_ROOT/scripts/generate-frame-md.js <fileKey>
 ```
 
-### 8. Initialize QMD search index
+### 9. Initialize QMD search index
 
 ```bash
 source $CLAUDE_PLUGIN_ROOT/scripts/lib/qmd.sh
@@ -77,11 +91,11 @@ qmd_reindex
 
 If QMD is not installed, warn the user but don't fail — tracking and snapshots still work without search.
 
-### 9. Update tracked.json
+### 10. Update tracked.json
 
 Set `lastSynced` to the current ISO 8601 timestamp.
 
-### 10. Report
+### 11. Report
 
 ```
 Tracked: <fileName> (<fileKey>)

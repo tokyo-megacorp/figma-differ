@@ -37,6 +37,14 @@ bash $CLAUDE_PLUGIN_ROOT/scripts/figma-api.sh fetch_file_tree <fileKey> > "$TREE
 
 Extract `fileName` from the response: `jq -r '.name' "$TREE_FILE"`.
 
+### 3.5. Extract screen flows
+
+Extract connector lines and prototype transitions from the tree:
+
+```bash
+node $CLAUDE_PLUGIN_ROOT/scripts/extract-flows.js <fileKey> "$TREE_FILE"
+```
+
 ### 4. Split into per-frame node.json files
 
 For each frame in the index, extract its subtree from the tree file using jq.

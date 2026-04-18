@@ -12,5 +12,11 @@
   "keywords": ["figma", "design", "diff", "slack", "design-review"],
   "commands": "./commands/",
   "skills": "./skills/",
-  "hooks": "./hooks/hooks.json"
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": {
+    "figma-differ": {
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/mcp-server.mjs"]
+    }
+  }
 }

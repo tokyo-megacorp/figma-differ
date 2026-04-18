@@ -33,20 +33,31 @@ Run the snapshot-all workflow to update all frames:
 
 Invoke `/figma-differ:snapshot-all <url>` to re-snapshot all frames.
 
-#### 2c. Generate frame.md documents
+#### 2c. Extract screen flows
+
+```bash
+TREE_FILE="/tmp/figma-tree-<fileKey>-$$.json"
+if [[ ! -f "$TREE_FILE" ]]; then
+  bash $CLAUDE_PLUGIN_ROOT/scripts/figma-api.sh fetch_file_tree <fileKey> > "$TREE_FILE"
+fi
+node $CLAUDE_PLUGIN_ROOT/scripts/extract-flows.js <fileKey> "$TREE_FILE"
+rm -f "$TREE_FILE"
+```
+
+#### 2d. Generate frame.md documents
 
 ```bash
 node $CLAUDE_PLUGIN_ROOT/scripts/generate-frame-md.js <fileKey>
 ```
 
-#### 2d. Update QMD index
+#### 2e. Update QMD index
 
 ```bash
 source $CLAUDE_PLUGIN_ROOT/scripts/lib/qmd.sh
 qmd_reindex
 ```
 
-#### 2e. Update tracked.json
+#### 2f. Update tracked.json
 
 Set `lastSynced` to the current ISO 8601 timestamp for this file.
 
