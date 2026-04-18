@@ -1,41 +1,7 @@
 {
-  "description": "figma-differ dogfood hooks — nudge, track, and loop",
+  "description": "figma-differ plugin hooks",
   "hooks": {
-    "Stop": [
-      {
-        "matcher": "",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/pedro/Developer/figma-differ/scripts/hooks/dogfood-stop.sh",
-            "timeout": 15
-          }
-        ]
-      }
-    ],
-    "PostToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/pedro/Developer/figma-differ/scripts/hooks/validate-snapshots.sh",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
     "UserPromptSubmit": [
-      {
-        "matcher": ".*",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "/Users/pedro/Developer/figma-differ/scripts/hooks/dogfood-prompt.sh",
-            "timeout": 10
-          }
-        ]
-      },
       {
         "matcher": ".*",
         "hooks": [
