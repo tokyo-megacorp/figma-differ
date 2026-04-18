@@ -105,6 +105,7 @@ fetch_node_json() {
   local file_key="$1" node_id="$2" version="${3:-}"
   _check_deps
   _check_token
+  echo "Fetching node ${node_id}..." >&2
   local encoded_id=$(_url_encode_node_id "$node_id")
   local url="/files/${file_key}/nodes?ids=${encoded_id}"
   [[ -n "$version" ]] && url="${url}&version=${version}"
@@ -115,6 +116,7 @@ fetch_node_png() {
   local file_key="$1" node_id="$2" output_path="$3"
   _check_deps
   _check_token
+  echo "Exporting PNG for ${node_id}..." >&2
 
   # Step 1: get S3 export URL
   local response

@@ -66,6 +66,8 @@ bash $CLAUDE_PLUGIN_ROOT/scripts/figma-api.sh fetch_node_png <fileKey> <nodeId> 
 
 If this fails, warn the user but continue — JSON snapshot is still useful for structural diffs.
 
+**Note:** If the node type is CANVAS (a full page), skip the PNG export — Figma's Images API does not support exporting entire pages. Log: "Skipping PNG export for CANVAS node (pages cannot be exported as images)."
+
 ### 6. Create Slack parent thread (if configured)
 
 Check if `~/.figma-differ/config.json` exists and has a `slack_channel_id`. If so:

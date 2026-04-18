@@ -304,6 +304,15 @@ function getCachedFlows() {
 
 function generateFrameMd(document, frame, index, timestamp) {
   const nodes = walkNodes(document)
+  const isPage = document.type === 'CANVAS'
+
+  if (nodes.length > 10000) {
+    console.error(`WARN: ${frame.name} (${frame.id}) has ${nodes.length} nodes — consider indexing child frames individually`)
+  }
+  if (isPage) {
+    console.error(`WARN: node ${frame.id} is a CANVAS (page) with ${nodes.length} nodes — consider indexing child frames instead`)
+  }
+
   const texts = extractTexts(nodes)
   const components = extractComponents(nodes)
   const hierarchy = buildHierarchy(document, 4)
@@ -427,20 +436,28 @@ function generateFrameMd(document, frame, index, timestamp) {
   // Components section
   if (components.size > 0) {
     lines.push('## Components Used')
+    const compCap = isPage ? 20 : Infinity
+    let compIdx = 0
     for (const [name, count] of components) {
+      if (compIdx >= compCap) {
+        lines.push(`- _...and ${components.size - compCap} more_`)
+        break
+      }
       lines.push(count > 1 ? `- ${name} (x${count})` : `- ${name}`)
+      compIdx++
     }
     lines.push('')
   }
 
   // Text content section
+  const textCap = isPage ? 30 : 50
   if (texts.length > 0) {
     lines.push('## Text Content')
-    for (const t of texts.slice(0, 50)) {
+    for (const t of texts.slice(0, textCap)) {
       lines.push(`- "${truncate(t, 80)}"`)
     }
-    if (texts.length > 50) {
-      lines.push(`- _...and ${texts.length - 50} more_`)
+    if (texts.length > textCap) {
+      lines.push(`- _...and ${texts.length - textCap} more_`)
     }
     lines.push('')
   }
@@ -448,10 +465,10 @@ function generateFrameMd(document, frame, index, timestamp) {
   // Hierarchy section (capped to avoid huge files)
   if (hierarchy.length > 0) {
     lines.push('## Hierarchy')
-    const cap = 80
-    lines.push(...hierarchy.slice(0, cap))
-    if (hierarchy.length > cap) {
-      lines.push(`- _...${hierarchy.length - cap} more nodes_`)
+    const hierCap = isPage ? 40 : 80
+    lines.push(...hierarchy.slice(0, hierCap))
+    if (hierarchy.length > hierCap) {
+      lines.push(`- _...${hierarchy.length - hierCap} more nodes_`)
     }
     lines.push('')
   }
