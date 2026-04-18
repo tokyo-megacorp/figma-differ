@@ -1,7 +1,14 @@
 {
   "name": "figma-differ",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
+  "scripts": {
+    "test": "npm run test:unit && npm run test:e2e",
+    "test:unit": "node tests/generate-frame-md.test.js && node tests/extract-flows.test.js && node tests/structural-diff.test.js && node tests/bulk-diff.test.js && node tests/render-review.test.js",
+    "test:e2e": "node tests/mcp-server.test.js && npx playwright test",
+    "test:shell": "bash tests/figma-api.test.sh && bash tests/diff-all.test.sh && bash tests/hooks.test.sh && bash tests/benchmark.test.sh && bash tests/compile-review.test.sh && bash tests/test-api.test.sh",
+    "validate": "node scripts/validate-plugin.js"
+  },
   "devDependencies": {
     "@playwright/test": "^1.59.1"
   },

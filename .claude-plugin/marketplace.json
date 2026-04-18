@@ -1,0 +1,23 @@
+{
+  "name": "figma-differ",
+  "owner": {
+    "name": "Pedro Almeida",
+    "url": "https://github.com/ipedro"
+  },
+  "metadata": {
+    "description": "Local Figma design database with semantic search, change tracking, flow detection, and Slack notifications.",
+    "version": "0.2.0"
+  },
+  "plugins": [
+    {
+      "name": "figma-differ",
+      "description": "Snapshot Figma canvases, diff design changes, search frames semantically, detect screen flows, and notify Slack.",
+      "version": "0.2.0",
+      "author": { "name": "Pedro Almeida" },
+      "source": ".",
+      "category": "design-tools",
+      "tags": ["figma", "design", "diff", "semantic-search", "mcp"],
+      "keywords": ["figma", "design-review", "snapshot", "diff", "qmd", "semantic-search", "flow-detection", "slack"]
+    }
+  ]
+}
