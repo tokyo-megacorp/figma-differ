@@ -97,7 +97,26 @@ fs.writeFileSync(path.join(BASE, 'flows.json'), JSON.stringify({
     { type: 'prototype', from: { id: '1:1', name: 'Login', page: 'Auth' }, to: { id: '2:1', name: 'Dashboard', page: 'Main' }, trigger: 'Primary CTA' },
     { type: 'prototype', from: { id: '1:2', name: 'Signup', page: 'Auth' }, to: { id: '2:2', name: 'Profile', page: 'Main' }, trigger: 'Continue CTA' },
   ],
-  frameFlows: {},
+  frameFlows: {
+    '1:1': {
+      incoming: [],
+      outgoing: [
+        { type: 'prototype', from: { id: '1:1', name: 'Login' }, to: { id: '2:1', name: 'Dashboard' }, trigger: 'Primary CTA' },
+      ],
+    },
+    '1:2': {
+      incoming: [],
+      outgoing: [
+        { type: 'prototype', from: { id: '1:2', name: 'Signup' }, to: { id: '2:2', name: 'Profile' }, trigger: 'Continue CTA' },
+      ],
+    },
+    '2:1': {
+      incoming: [
+        { type: 'prototype', from: { id: '1:1', name: 'Login' }, to: { id: '2:1', name: 'Dashboard' }, trigger: 'Primary CTA' },
+      ],
+      outgoing: [],
+    },
+  },
 }, null, 2))
 
 const frameContexts = {

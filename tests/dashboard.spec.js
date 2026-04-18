@@ -31,6 +31,13 @@ test.describe('Dashboard v1 — Index Screen', () => {
     await expect(card.locator('.diff-card-meta')).toContainText('2 unchanged')
   })
 
+  test('renders latest triage snapshot card', async ({ page }) => {
+    await expect(page.locator('.triage-card')).toBeVisible()
+    await expect(page.locator('.triage-card')).toContainText('Latest triage snapshot')
+    await expect(page.locator('.triage-card')).toContainText('Login')
+    await expect(page.locator('.triage-card')).toContainText('Signup')
+  })
+
   test('clicking diff card navigates to accordion', async ({ page }) => {
     await page.locator('.diff-card').click()
     await expect(page.locator('.topbar')).toBeVisible()
@@ -139,6 +146,14 @@ test.describe('Dashboard v1 — Detail Screen', () => {
   test('shows node count stats', async ({ page }) => {
     await expect(page.locator('.detail-stats')).toContainText('15 → 17 nodes')
     await expect(page.locator('.detail-stats')).toContainText('+2')
+  })
+
+  test('shows frame summary context from frame.md', async ({ page }) => {
+    await expect(page.locator('.detail-context-card').filter({ hasText: 'Frame summary' })).toContainText('authentication screen')
+  })
+
+  test('shows flow context from flows.json', async ({ page }) => {
+    await expect(page.locator('.detail-context-card').filter({ hasText: 'Flow context' })).toContainText('Leads to Dashboard')
   })
 
   test('shows change groups with correct labels', async ({ page }) => {

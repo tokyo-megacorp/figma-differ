@@ -229,6 +229,18 @@ function generateHtml(data) {
     }
     .diff-card-title { font-weight: 600; }
     .diff-card-meta { color: var(--text-secondary); font-size: 11px; margin-top: 4px; }
+    .triage-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+    }
+    .triage-card-title { font-weight: 600; margin-bottom: 6px; }
+    .triage-card-meta { color: var(--text-secondary); font-size: 12px; margin-bottom: 10px; }
+    .triage-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
+    .triage-item { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+    .triage-item-name { font-weight: 600; }
 
     /* ── Accordion screen ──────────────────────────────────────── */
     .topbar {
@@ -338,6 +350,25 @@ function generateHtml(data) {
       font-size: 12px;
       margin: 4px 0 16px;
     }
+    .detail-context-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin: 16px 0;
+    }
+    .detail-context-title {
+      color: var(--text-secondary);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 6px;
+    }
+    .detail-context-body {
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .detail-context-list { list-style: none; display: flex; flex-direction: column; gap: 6px; }
     .change-group { margin-bottom: 16px; }
     .change-group-header {
       color: var(--text-secondary);
@@ -604,6 +635,16 @@ function getFrameCommentCounts() {
   return counts;
 }
 
+function getFrameContext(nodeId) {
+  if (!DATA.frameContexts) return null;
+  return DATA.frameContexts[nodeId] || DATA.frameContexts[String(nodeId).replace('_', ':')] || null;
+}
+
+function getFrameFlowContext(nodeId) {
+  const flows = DATA.flows && DATA.flows.frameFlows ? DATA.flows.frameFlows : {};
+  return flows[nodeId] || flows[String(nodeId).replace('_', ':')] || { incoming: [], outgoing: [] };
+}
+
 function navigateToFrame(nodeId) {
   const idx = DATA.index;
   const frame = idx.frames.find(f => f.id === nodeId || f.nodeId === nodeId);
@@ -663,6 +704,22 @@ function renderIndex() {
   html += '</div>';
 
   html += '<div class="content">';
+  if (DATA.latestTriage) {
+    const latest = DATA.latestTriage;
+    const latestChanged = (latest.top || []).length + (latest.rest || []).length;
+    html += '<div class="triage-card">';
+    html += '<div class="triage-card-title">Latest triage snapshot</div>';
+    html += '<div class="triage-card-meta">' + latestChanged + ' changed frame(s) · ' + (latest.unchanged || 0) + ' unchanged</div>';
+    const highlights = [...(latest.top || []), ...(latest.rest || [])].slice(0, 3);
+    if (highlights.length > 0) {
+      html += '<ul class="triage-list">';
+      for (const item of highlights) {
+        html += '<li class="triage-item"><span class="triage-item-name">' + escapeHtml(item.name) + '</span><span>' + escapeHtml(item.severity || 'unknown') + '</span></li>';
+      }
+      html += '</ul>';
+    }
+    html += '</div>';
+  }
   html += '<div class="section-label">Recent Diffs</div>';
 
   if (reviews.length === 0) {
@@ -908,6 +965,29 @@ function renderDetail(nodeId) {
   html += '<span class="badge badge-' + current.severity + '">' + current.severity + '</span>';
   html += '</div>';
   html += '<div class="detail-stats">' + current.nodeCountBefore + ' → ' + current.nodeCountAfter + ' nodes (' + (current.nodeCountDelta >= 0 ? '+' : '') + current.nodeCountDelta + ') · ' + escapeHtml(current.page) + ' · ' + escapeHtml(current.summary) + '</div>';
+
+  const frameContext = getFrameContext(nodeId);
+  if (frameContext && frameContext.description) {
+    html += '<div class="detail-context-card">';
+    html += '<div class="detail-context-title">Frame summary</div>';
+    html += '<div class="detail-context-body">' + escapeHtml(frameContext.description) + '</div>';
+    html += '</div>';
+  }
+
+  const flowContext = getFrameFlowContext(nodeId);
+  if ((flowContext.incoming || []).length > 0 || (flowContext.outgoing || []).length > 0) {
+    html += '<div class="detail-context-card">';
+    html += '<div class="detail-context-title">Flow context</div>';
+    html += '<ul class="detail-context-list">';
+    for (const incoming of (flowContext.incoming || []).slice(0, 3)) {
+      html += '<li class="detail-context-body">From ' + escapeHtml(incoming.from?.name || 'Unknown') + '</li>';
+    }
+    for (const outgoing of (flowContext.outgoing || []).slice(0, 3)) {
+      html += '<li class="detail-context-body">Leads to ' + escapeHtml(outgoing.to?.name || 'Unknown') + '</li>';
+    }
+    html += '</ul>';
+    html += '</div>';
+  }
 
   // Lazy image
   const imageUrl = DATA.imageUrls[nodeId];
