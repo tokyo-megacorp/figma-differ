@@ -10,6 +10,7 @@ allowed-tools:
   - Bash
   - Read
   - Write
+  - Agent
 ---
 
 ## Index All Frames in a Figma File
@@ -21,6 +22,12 @@ Extract `fileKey` from the Figma URL. Node ID is not needed — we're indexing t
 ### 2. Check prerequisites
 
 Verify a Figma token is loadable: `bash scripts/auth.sh status` (if it fails, tell the user to run `bash scripts/auth.sh set` and stop).
+
+### 2.5. Execution shape
+
+- Use a subagent for the heavy tree walk / manifest write so the full file-tree payload does not flood the main conversation.
+- Keep user-facing updates concise: `Fetching tree`, `Walking nodes`, `Writing index`.
+- When available, mirror those milestones into task/progress tracking instead of streaming raw traversal output to the main thread.
 
 ### 3. Fetch the full file tree
 

@@ -11,6 +11,7 @@ allowed-tools:
   - Bash
   - Read
   - Write
+  - Agent
   - mcp__claude_ai_Slack__slack_send_message
 ---
 
@@ -25,6 +26,13 @@ Extract `fileKey` from the Figma URL (`https://www.figma.com/design/<fileKey>/..
 - Verify a Figma token is loadable: `bash scripts/auth.sh status` (if it fails, tell the user to run `bash scripts/auth.sh set` and stop)
 - Always refresh the index first (re-run the index workflow: fetch tree, walk, write index.json) to catch new frames added since last run
 - After indexing, if the frames array in `index.json` is empty, stop and tell the user the file has no indexable frames
+
+### 2.5. Execution shape
+
+- Fork long-running mechanical work into subagents so raw tree/JSON output stays out of the main conversation.
+- Keep the user-facing thread to concise progress updates such as: `Fetching tree`, `Splitting frames`, `Exporting PNGs`, `Generating frame.md`, `Updating search index`.
+- When task/progress tracking primitives are available, reflect those same milestones there instead of narrating every low-level step inline.
+- Reserve the main model for interpretation and final summaries; use lighter-weight execution lanes for deterministic batching when available.
 
 ### 3. Fetch the full file tree (1 API call)
 
@@ -155,7 +163,7 @@ Run /figma-differ:diff-all <url> to check for changes later.
 ### API call budget
 
 - 1 call: fetch_file_tree
-- ceil(N/50) calls: batch image export (e.g. 200 frames = 4 calls)
+- ceil(N/10) calls: batch image export (e.g. 200 frames = 20 calls)
 - 1 call: fetch_comments
 - N Slack calls: parent thread creation (first run only; subsequent runs = 0)
-- Total for 200 frames: ~6 Figma API calls + up to 200 Slack messages on first run
+- Total for 200 frames: ~22 Figma API calls + up to 200 Slack messages on first run

@@ -16,7 +16,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
 import { execSync } from 'child_process'
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync, statSync } from 'fs'
-import { join, basename } from 'path'
+import { join } from 'path'
 import { homedir } from 'os'
 import { execSync as execSyncRaw } from 'child_process'
 
@@ -61,6 +61,48 @@ function parseFrontmatter(md) {
     if (m) fm[m[1]] = m[2]
   }
   return fm
+}
+
+function filterNonSelfLoops(flows = []) {
+  return flows.filter(f => f?.from?.id && f?.to?.id && f.from.id !== f.to.id)
+}
+
+function takeSectionItems(md, heading, limit = 5) {
+  const sectionMatch = md.match(new RegExp(`## ${heading}\\n([\\s\\S]*?)(?:\\n## |$)`))
+  if (!sectionMatch) return []
+  return sectionMatch[1]
+    .split('\n')
+    .map(line => line.trimEnd())
+    .filter(line => line.startsWith('- '))
+    .slice(0, limit)
+}
+
+function extractDescriptionBlockquote(md) {
+  const lines = md.split('\n')
+  return lines.find(line => line.startsWith('> ')) || ''
+}
+
+function summarizeFrameMd(md) {
+  const frontmatter = parseFrontmatter(md)
+  const frontmatterMatch = md.match(/^---\n[\s\S]*?\n---/)
+  const parts = []
+  if (frontmatterMatch) parts.push(frontmatterMatch[0])
+
+  const description = extractDescriptionBlockquote(md)
+  if (description) parts.push('', description)
+
+  const nodeCount = Number(frontmatter.node_count || 0)
+  if (frontmatter.figma_type === 'CANVAS' || nodeCount > 10000) {
+    parts.push('', '> degraded summary: large page/section node — prefer indexing child frames for full fidelity')
+  }
+
+  const components = takeSectionItems(md, 'Components Used')
+  if (components.length) parts.push('', '## Components Used', ...components)
+
+  const textItems = takeSectionItems(md, 'Text Content')
+  if (textItems.length) parts.push('', '## Text Content', ...textItems)
+
+  return parts.join('\n').trim()
 }
 
 function qmdSearch(query, limit = 10) {
@@ -189,20 +231,19 @@ server.tool(
   {
     node_id: z.string().describe('Figma node ID (e.g., "1431:33250" or "1431_33250")'),
     file_key: z.string().optional().describe('Figma file key. If omitted, searches all tracked files.'),
+    summary: z.boolean().optional().describe('When true, return a compact summary instead of the full frame markdown.'),
   },
-  async ({ node_id, file_key }) => {
+  async ({ node_id, file_key, summary }) => {
     const normalizedId = node_id.replace(/_/g, ':')
-    const safeId = node_id.replace(/:/g, '_')
 
     const fileKeys = file_key ? [file_key] : findFileKeys()
     for (const fk of fileKeys) {
       const md = findFrameMd(fk, normalizedId)
       if (md) {
-        const fm = parseFrontmatter(md)
         return {
           content: [{
             type: 'text',
-            text: md,
+            text: summary ? summarizeFrameMd(md) : md,
           }],
         }
       }
@@ -232,11 +273,9 @@ server.tool(
         const frameFlows = flowsData.frameFlows?.[normalizedId]
         if (!frameFlows) continue
 
-        const incoming = (frameFlows.incoming || [])
-          .filter(f => f.from.id !== f.to.id)
+        const incoming = filterNonSelfLoops(frameFlows.incoming || [])
           .map(f => `← ${f.from.name} (${f.type})`)
-        const outgoing = (frameFlows.outgoing || [])
-          .filter(f => f.from.id !== f.to.id)
+        const outgoing = filterNonSelfLoops(frameFlows.outgoing || [])
           .map(f => `→ ${f.to.name} (${f.type})`)
 
         const lines = []
@@ -248,16 +287,18 @@ server.tool(
       }
 
       // All flows
+      const filteredFlows = filterNonSelfLoops(flowsData.flows || [])
+      const filteredConnectorFlows = filteredFlows.filter(f => f.type === 'connector').length
+      const filteredPrototypeFlows = filteredFlows.filter(f => f.type === 'prototype').length
       const lines = [
         `File: ${fk}`,
-        `Total flows: ${flowsData.totalFlows}`,
-        `Connector lines: ${flowsData.connectorFlows}`,
-        `Prototype links: ${flowsData.prototypeFlows}`,
+        `Total flows: ${filteredFlows.length}`,
+        `Connector lines: ${filteredConnectorFlows}`,
+        `Prototype links: ${filteredPrototypeFlows}`,
         '',
         'Flows:',
       ]
-      for (const f of flowsData.flows) {
-        if (f.from.id === f.to.id) continue
+      for (const f of filteredFlows) {
         const arrow = f.type === 'prototype' ? `→ (${f.trigger || 'interaction'})` : '→'
         lines.push(`  ${f.from.name} ${arrow} ${f.to.name}`)
       }

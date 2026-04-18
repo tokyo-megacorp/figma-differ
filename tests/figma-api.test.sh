@@ -37,6 +37,22 @@ assert "fetch_node_json without token errors" '[[ -n "$out" ]]'
 out=$(FIGMA_TOKEN="" bash "$SCRIPT" fetch_batch_nodes filekey "1:1,1:2" /tmp 2>&1 || true)
 assert "batch nodes without token errors" '[[ -n "$out" ]]'
 
+# Test 4b: fetch_node_png skips CANVAS nodes without requiring a token
+set +e
+out=$(FIGMA_TOKEN="" bash "$SCRIPT" fetch_node_png filekey 1:1 /tmp/figma-api-test.png CANVAS 2>&1)
+status=$?
+set -e
+assert "fetch_node_png CANVAS shortcut exits 0" '[[ $status -eq 0 ]]'
+assert "fetch_node_png CANVAS shortcut warns" '[[ "$out" == *"Skipping PNG export for CANVAS node"* ]]'
+
+# Test 4c: fetch_node_png skips gracefully when the images API returns no export URL
+set +e
+out=$(FIGMA_DIFFER_TEST_IMAGE_RESPONSE='{"images":{}}' bash "$SCRIPT" fetch_node_png filekey 1:1 /tmp/figma-api-test.png 2>&1)
+status=$?
+set -e
+assert "fetch_node_png missing URL exits 0" '[[ $status -eq 0 ]]'
+assert "fetch_node_png missing URL warns" '[[ "$out" == *"Skipping PNG export for node 1:1"* ]]'
+
 # Test 5: Known commands are in dispatch
 for cmd in fetch_node_json fetch_node_png fetch_comments fetch_file_tree fetch_batch_nodes fetch_batch_images fetch_image_urls fetch_versions; do
   if grep -q "$cmd)" "$SCRIPT"; then

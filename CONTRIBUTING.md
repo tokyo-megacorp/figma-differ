@@ -14,20 +14,29 @@ figma-differ is a Claude Code plugin with an MCP server for Figma design search 
 ```bash
 git clone https://github.com/ipedro/figma-differ.git
 cd figma-differ
-npm install
+npm ci
 npx playwright install
 npm test
 ```
+
+If you are developing through a local `dev-marketplace`, the plugin directory must be a **symlink** to this repo, not a stale copy:
+
+```bash
+ln -s /path/to/figma-differ /path/to/dev-marketplace/plugins/figma-differ
+```
+
+After changing `plugin.json` or `hooks/hooks.json`, run `/reload-plugins` so Claude Code picks up the new manifest or hook registrations.
 
 ## Project Structure
 
 | Directory | Contents |
 |-----------|----------|
-| `scripts/` | 13 core scripts -- API wrapper, diff engine, flow extractor, MCP server, validation |
+| `scripts/` | 12 top-level scripts -- API wrapper, diff engine, flow extractor, MCP server, validation |
 | `skills/` | 10 skill definitions (snapshot, diff, diff-all, index, search, track, sync, notify, review-comments) |
 | `commands/` | 10 slash command entry points (one per skill) |
 | `agents/` | 2 sub-agents (structural-differ, vision-analyzer) |
-| `tests/` | 14 test files -- unit (.test.js), e2e (mcp-server.test.js), browser (dashboard.spec.js), shell (.test.sh) |
+| `subagent-variants/` | 3 prompt fragments injected into spawned subagents by hook |
+| `tests/` | 18 test files -- unit (.test.js), e2e (mcp-server.test.js), browser (dashboard.spec.js), shell (.test.sh) |
 | `.claude-plugin/` | Plugin manifest (plugin.json) and marketplace config (marketplace.json) |
 | `hooks/` | Hook configuration (hooks.json) and hook scripts |
 

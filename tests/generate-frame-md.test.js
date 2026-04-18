@@ -413,6 +413,32 @@ try {
     assert(md.includes('snapshot_timestamp: "20260418T120000Z"'), 'timestamp filtering: correct timestamp in frontmatter')
   }
 
+  // ── Test 10b: Large SECTION description uses child-frame semantics ─────
+  {
+    const FK = 'SECTION10B'
+    const nodeId = '10:9'
+    const index = makeIndex(FK, [{ id: nodeId, name: 'Security & Privacy', type: 'SECTION', page: 'Settings' }])
+    writeIndex(FK, index)
+
+    const doc = makeDocument(nodeId, 'Security & Privacy', {
+      type: 'SECTION',
+      children: [
+        makeDocument('10:10', 'PIN', { children: [makeTextNode('10:11', 'Set up PIN')] }),
+        makeDocument('10:12', 'Password', { children: [makeTextNode('10:13', 'Create password')] }),
+        makeDocument('10:14', 'Biometrics', { children: [makeTextNode('10:15', 'Use Face ID')] }),
+      ],
+    })
+    writeSnapshot(FK, nodeId, '20260418T120000Z', makeNodeJson(nodeId, doc))
+    runScript(FK)
+
+    const md = readFrameMd(FK, nodeId)
+    const fm = parseFrontmatter(md)
+    assert(fm.description.includes('security'), 'section semantics: description keeps security context')
+    assert(/pin/i.test(fm.description), 'section semantics: description mentions PIN')
+    assert(/password/i.test(fm.description), 'section semantics: description mentions password')
+    assert(/biometric/i.test(fm.description), 'section semantics: description mentions biometrics')
+  }
+
   // ── Test 11: Single node mode ──────────────────────────────────────────
   {
     const FK = 'SINGLE11'

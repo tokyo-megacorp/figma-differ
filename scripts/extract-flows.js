@@ -114,13 +114,13 @@ function extractPrototypeFlows(document, nodeMap, parentMap) {
     if (node.transitionNodeID) {
       // "from" is the frame containing this trigger element
       const fromFrame = currentFrame
-      // "to" is the target node (usually a frame)
-      const toInfo = nodeMap[node.transitionNodeID]
-      if (fromFrame && toInfo && fromFrame.id !== node.transitionNodeID) {
+      // "to" resolves to the nearest flow endpoint ancestor for the target node
+      const toFrame = resolveToFrame(node.transitionNodeID, nodeMap, parentMap)
+      if (fromFrame && toFrame && fromFrame.id !== toFrame.id) {
         flows.push({
           type: 'prototype',
           from: { id: fromFrame.id, name: fromFrame.name, nodeType: fromFrame.type, page: fromFrame.page },
-          to: { id: node.transitionNodeID, name: toInfo.name, nodeType: toInfo.type, page: toInfo.page },
+          to: { id: toFrame.id, name: toFrame.name, nodeType: toFrame.type, page: toFrame.page },
           trigger: node.name || node.type,
         })
       }

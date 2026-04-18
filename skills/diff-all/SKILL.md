@@ -66,10 +66,13 @@ For frames that differ (from step 4):
 
 LLM cost is proportional to actual changes, not total frames.
 
+Keep the main conversation to progress updates and final summaries only. Raw diff payloads and intermediate JSON should stay in the agent lanes.
+When task/progress tracking is available, use it for milestones such as `Splitting current tree`, `Structural diff`, `Vision diff`, `Comment delta`, and `Writing reports`.
+
 ### 6. Vision analysis — structurally changed frames only
 
 For frames where structural diff found changes (severity > "none"):
-1. Batch fetch current PNGs: use `fetch_batch_images` for all changed frame IDs (chunked at 50)
+1. Batch fetch current PNGs: use `fetch_batch_images` for all changed frame IDs (chunked at 10)
 2. Load stored PNGs from latest snapshots
 3. Dispatch `vision-analyzer` agent with reference and current images
 4. Collect fidelity scores and action items

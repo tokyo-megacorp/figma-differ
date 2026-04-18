@@ -48,6 +48,8 @@ Stores to `~/.figma-differ/<fileKey>/<nodeId>/<timestamp>/`:
 
 This is the baseline used by all diff operations.
 
+If the URL points at a **CANVAS/page** node, figma-differ keeps the JSON snapshot but skips PNG export and warns that page-level snapshots are better handled by indexing child frames first.
+
 ---
 
 ### 2. Diff a node
@@ -114,7 +116,7 @@ Run this before `snapshot-all` or `diff-all` if you want to inspect what frames 
 
 ### 6. Bulk snapshot
 
-Snapshots every frame in a Figma file in a single pass. Efficient: fetches the full file tree in one API call, then batch-exports all PNGs in one request.
+Snapshots every frame in a Figma file in a single pass. Efficient: fetches the full file tree in one API call, then batch-exports PNGs in chunks of 10 frame IDs.
 
 ```
 /figma-differ:snapshot-all <figma-file-url>
@@ -122,7 +124,7 @@ Snapshots every frame in a Figma file in a single pass. Efficient: fetches the f
 
 Uses the same timestamp across all frames (atomic file-level snapshot). Also caches comments at `~/.figma-differ/<fileKey>/comments/<timestamp>.json`.
 
-**API call budget:** 1 tree fetch + 1 batch image export + 1 comments fetch — regardless of frame count.
+**API call budget:** 1 tree fetch + `ceil(frame_count / 10)` image-export calls + 1 comments fetch.
 
 ---
 
@@ -195,6 +197,7 @@ skills/snapshot-all/          Bulk snapshot
 skills/diff-all/              Bulk diff with tiered report
 agents/structural-differ.md   JSON tree diff agent
 agents/vision-analyzer.md     Claude vision comparison agent
+subagent-variants/            Prompt fragments injected by hook for spawned agents
 ~/.figma-differ/              Runtime snapshot storage (not git-tracked)
 ```
 

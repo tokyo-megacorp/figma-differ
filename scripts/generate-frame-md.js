@@ -196,13 +196,49 @@ function extractLayoutPatterns(nodes) {
   return [...new Set(patterns)]
 }
 
-function synthesizeDescription(frame, colors, buttons, formFields, layoutPatterns, components, texts) {
+function collectSemanticSignals(frame, document, texts) {
+  const lowerFrameName = (frame.name || '').toLowerCase()
+  const childNames = (document.children || [])
+    .map(child => (child.name || '').trim())
+    .filter(Boolean)
+  const lowerSignals = [
+    lowerFrameName,
+    ...childNames.map(name => name.toLowerCase()),
+    ...(texts || []).slice(0, 20).map(text => text.toLowerCase()),
+  ]
+
+  const matchedFlows = []
+  const groups = [
+    { label: 'PIN', pattern: /\bpin\b/ },
+    { label: 'password', pattern: /\bpassword\b/ },
+    { label: 'biometrics', pattern: /\bbiometric|face id|touch id\b/ },
+    { label: 'privacy', pattern: /\bprivacy\b/ },
+    { label: 'security', pattern: /\bsecurity\b/ },
+  ]
+
+  for (const group of groups) {
+    if (lowerSignals.some(signal => group.pattern.test(signal))) {
+      matchedFlows.push(group.label)
+    }
+  }
+
+  return {
+    childNames,
+    matchedFlows: [...new Set(matchedFlows)],
+    isSectionLike: frame.type === 'SECTION' || document.type === 'SECTION' || document.type === 'CANVAS',
+  }
+}
+
+function synthesizeDescription(frame, document, colors, buttons, formFields, layoutPatterns, components, texts) {
   const parts = []
+  const semanticSignals = collectSemanticSignals(frame, document, texts)
 
   // Screen type from page name or components
   const page = (frame.page || '').toLowerCase()
   if (/auth|login|sign.?in|sign.?up/i.test(page) || /auth|login|sign.?in/i.test(frame.name))
     parts.push('authentication screen')
+  else if (/security|privacy/i.test(frame.name))
+    parts.push('security settings')
   else if (/setting|preference|config/i.test(page) || /setting|preference/i.test(frame.name))
     parts.push('settings screen')
   else if (/profile|account/i.test(page) || /profile|account/i.test(frame.name))
@@ -243,6 +279,10 @@ function synthesizeDescription(frame, colors, buttons, formFields, layoutPattern
   const notable = compNames.filter(n => /keyboard|modal|dialog|toast|alert|tab|nav|card|avatar/i.test(n))
   if (notable.length > 0) {
     parts.push(`features: ${notable.slice(0, 3).join(', ')}`)
+  }
+
+  if (semanticSignals.isSectionLike && semanticSignals.matchedFlows.length > 0) {
+    parts.push(`covers: ${semanticSignals.matchedFlows.slice(0, 4).join(', ')}`)
   }
 
   return parts.join('; ')
@@ -321,7 +361,7 @@ function generateFrameMd(document, frame, index, timestamp) {
   const formFields = extractFormFields(nodes)
   const layoutPatterns = extractLayoutPatterns(nodes)
 
-  let description = synthesizeDescription(frame, colors, buttons, formFields, layoutPatterns, components, texts)
+  let description = synthesizeDescription(frame, document, colors, buttons, formFields, layoutPatterns, components, texts)
 
   // Enrich description with flow context
   const frameFlows = getFrameFlows(frame.id, getCachedFlows())

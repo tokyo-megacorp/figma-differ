@@ -11,32 +11,48 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 BASE_DIR="$HOME/.figma-differ/5nIxJq1CzXIipSFfjs8eMQ"
 DIFF_FILE="$BASE_DIR/latest-diff-all.json"
 
-errors=0
 metrics=()
+
+json_metric_or_default() {
+  local js_body="$1" default_value="$2"
+  if [[ ! -f "$DIFF_FILE" ]]; then
+    echo "$default_value"
+    return 0
+  fi
+
+  node -e "
+    const fs = require('fs');
+    try {
+      const data = JSON.parse(fs.readFileSync('$DIFF_FILE', 'utf8'));
+      const value = (() => { ${js_body} })();
+      console.log(value ?? '$default_value');
+    } catch {
+      console.log('$default_value');
+    }
+  "
+}
 
 # ── Metric 1: False positive rate ───────────────────────────────────────────
 # Frames marked structural/cosmetic that are bbox-only = false positives
 if [[ -f "$DIFF_FILE" ]]; then
-  fp=$(node -e "
-    const d = JSON.parse(require('fs').readFileSync('$DIFF_FILE','utf8'));
+  fp=$(json_metric_or_default "
     let fp = 0;
-    for (const f of [...d.top, ...d.rest]) {
+    for (const f of [...(data.top || []), ...(data.rest || [])]) {
       const c = f.counts;
       const real = c.added + c.removed + c.componentSwaps + c.textChanges +
                    c.fillChanges + c.strokeChanges + c.fontChanges +
                    c.visibilityChanges + c.layoutChanges + c.effectChanges;
       if (real === 0 && (c.bboxChanges > 0 || c.constraintChanges > 0)) fp++;
     }
-    console.log(fp);
-  ")
-  total_changed=$(node -e "
-    const d = JSON.parse(require('fs').readFileSync('$DIFF_FILE','utf8'));
-    console.log(d.top.length + d.rest.length);
-  ")
+    return fp;
+  " "-1")
+  total_changed=$(json_metric_or_default "return (data.top || []).length + (data.rest || []).length;" "-1")
   metrics+=("\"false_positives\": $fp")
   metrics+=("\"total_changed\": $total_changed")
   # Score: 100 if 0 FPs, decreases with each FP
-  if [[ "$total_changed" -gt 0 ]]; then
+  if [[ "$fp" -lt 0 || "$total_changed" -lt 0 ]]; then
+    fp_score=0
+  elif [[ "$total_changed" -gt 0 ]]; then
     fp_score=$(node -e "console.log(Math.max(0, Math.round(100 * (1 - $fp / $total_changed))))")
   else
     fp_score=100
@@ -45,20 +61,20 @@ if [[ -f "$DIFF_FILE" ]]; then
 else
   metrics+=("\"false_positives\": -1")
   metrics+=("\"false_positive_score\": 0")
+  fp_score=0
+  total_changed=0
 fi
 
 # ── Metric 2: Pipeline errors ──────────────────────────────────────────────
 if [[ -f "$DIFF_FILE" ]]; then
-  pipeline_errors=$(node -e "
-    const d = JSON.parse(require('fs').readFileSync('$DIFF_FILE','utf8'));
-    console.log(d.errors);
-  ")
+  pipeline_errors=$(json_metric_or_default "return data.errors;" "-1")
   metrics+=("\"pipeline_errors\": $pipeline_errors")
   pe_score=$([[ "$pipeline_errors" -eq 0 ]] && echo 100 || echo 0)
   metrics+=("\"pipeline_error_score\": $pe_score")
 else
   metrics+=("\"pipeline_errors\": -1")
   metrics+=("\"pipeline_error_score\": 0")
+  pe_score=0
 fi
 
 # ── Metric 3: Corrupted baselines ──────────────────────────────────────────
@@ -88,23 +104,26 @@ metrics+=("\"test_coverage_score\": $tc_score")
 # ── Metric 5: Severity accuracy ────────────────────────────────────────────
 # structural-diff.js and bulk-diff.js should agree on severity classification
 # Check: are bbox-only changes still classified as structural?
-bbox_structural=0
+bbox_structural=-1
 if [[ -f "$DIFF_FILE" ]]; then
-  bbox_structural=$(node -e "
-    const d = JSON.parse(require('fs').readFileSync('$DIFF_FILE','utf8'));
+  bbox_structural=$(json_metric_or_default "
     let n = 0;
-    for (const f of [...d.top, ...d.rest]) {
+    for (const f of [...(data.top || []), ...(data.rest || [])]) {
       if (f.severity === 'structural' && f.counts.bboxChanges > 0) {
         const c = f.counts;
         if (c.added === 0 && c.removed === 0 && c.componentSwaps === 0 &&
             c.visibilityChanges === 0 && c.layoutChanges === 0) n++;
       }
     }
-    console.log(n);
-  ")
+    return n;
+  " "-1")
 fi
 metrics+=("\"bbox_only_structural\": $bbox_structural")
-sa_score=$([[ "$bbox_structural" -eq 0 ]] && echo 100 || echo 0)
+if [[ "$bbox_structural" -lt 0 ]]; then
+  sa_score=0
+else
+  sa_score=$([[ "$bbox_structural" -eq 0 ]] && echo 100 || echo 0)
+fi
 metrics+=("\"severity_accuracy_score\": $sa_score")
 
 # ── Composite score ─────────────────────────────────────────────────────────

@@ -264,6 +264,23 @@ setup()
   assert(f.to.id === '2:1' && f.to.name === 'Dashboard', 'nested: to resolved to parent frame Dashboard')
 }
 
+// Test 11: Prototype target resolving back to the same parent frame is filtered
+{
+  const tree = makeTree([
+    makePage('0:1', 'Page 1', [
+      makeFrame('1:1', 'Profile Tab', [
+        { id: '1:2', type: 'RECTANGLE', name: 'Variant Trigger', transitionNodeID: '1:3' },
+        { id: '1:3', type: 'INSTANCE', name: 'Selected Variant', children: [] },
+      ]),
+    ]),
+  ])
+  const treePath = writeTree('t11-tree.json', tree)
+  const { result } = runExtract('test-file-11', treePath)
+  assert(result.totalFlows === 0, 'resolved self-loop: totalFlows === 0')
+  assert(result.prototypeFlows === 0, 'resolved self-loop: prototypeFlows === 0')
+  assert(result.flows.length === 0, 'resolved self-loop: flows array empty')
+}
+
 teardown()
 
 // ── Summary ────────────────────────────────────────────────────────────────

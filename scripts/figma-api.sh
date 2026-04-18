@@ -113,7 +113,20 @@ fetch_node_json() {
 }
 
 fetch_node_png() {
-  local file_key="$1" node_id="$2" output_path="$3"
+  local file_key="$1" node_id="$2" output_path="$3" node_type="${4:-}"
+  if [[ "$node_type" == "CANVAS" ]]; then
+    echo "Skipping PNG export for CANVAS node (pages cannot be exported as images)" >&2
+    return 0
+  fi
+  if [[ -n "${FIGMA_DIFFER_TEST_IMAGE_RESPONSE:-}" ]]; then
+    local response="$FIGMA_DIFFER_TEST_IMAGE_RESPONSE"
+    local s3_url=""
+    s3_url=$(echo "$response" | jq -r ".images[\"${node_id}\"] // empty")
+    if [[ -z "$s3_url" || "$s3_url" == "null" ]]; then
+      echo "Skipping PNG export for node ${node_id} (images API returned no export URL)" >&2
+      return 0
+    fi
+  fi
   _check_deps
   _check_token
   echo "Exporting PNG for ${node_id}..." >&2
@@ -133,9 +146,14 @@ fetch_node_png() {
   fi
 
   if [[ -z "$s3_url" || "$s3_url" == "null" ]]; then
-    echo "ERROR: no export URL returned for node ${node_id}" >&2
-    echo "Response: ${response}" >&2
-    exit 1
+    local api_err
+    api_err=$(echo "$response" | jq -r '.err // empty' 2>/dev/null || true)
+    if [[ "$api_err" == *"CANVAS"* || "$api_err" == *"pages cannot be exported"* ]]; then
+      echo "Skipping PNG export for CANVAS node (pages cannot be exported as images)" >&2
+      return 0
+    fi
+    echo "Skipping PNG export for node ${node_id} (images API returned no export URL)" >&2
+    return 0
   fi
 
   # Step 2: download PNG from S3

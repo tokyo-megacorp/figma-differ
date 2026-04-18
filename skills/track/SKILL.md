@@ -12,6 +12,7 @@ allowed-tools:
   - Read
   - Write
   - Skill
+  - Agent
 ---
 
 ## Track a Figma File
@@ -23,6 +24,12 @@ Extract `fileKey` from the Figma URL (`https://www.figma.com/design/<fileKey>/..
 ### 2. Check prerequisites
 
 Verify a Figma token is loadable: `bash $CLAUDE_PLUGIN_ROOT/scripts/auth.sh status` (if it fails, tell the user to run `bash $CLAUDE_PLUGIN_ROOT/scripts/auth.sh set` and stop).
+
+### 2.5. Execution shape
+
+- Fork long-running bootstrap work (`index`, `snapshot-all`, `frame.md`, search refresh) into subagents so the main conversation stays concise.
+- Report progress in short steps: `Indexing`, `Snapshotting`, `Generating docs`, `Updating search`.
+- When task/progress tracking exists in the host, mirror those milestones there instead of narrating every internal command inline.
 
 ### 3. Read or create tracked.json
 

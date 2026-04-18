@@ -32,8 +32,11 @@ Check for `--notify` flag in arguments.
 ```bash
 CURRENT_DIR=$(mktemp -d /tmp/figma-diff-XXXX)
 bash $CLAUDE_PLUGIN_ROOT/scripts/figma-api.sh fetch_node_json <fileKey> <nodeId> > "$CURRENT_DIR/node.json"
-bash $CLAUDE_PLUGIN_ROOT/scripts/figma-api.sh fetch_node_png <fileKey> <nodeId> "$CURRENT_DIR/screenshot.png"
+NODE_TYPE=$(jq -r '.nodes["<nodeId>"].document.type // .document.type // empty' "$CURRENT_DIR/node.json")
+bash $CLAUDE_PLUGIN_ROOT/scripts/figma-api.sh fetch_node_png <fileKey> <nodeId> "$CURRENT_DIR/screenshot.png" "${NODE_TYPE:-}"
 ```
+
+If `NODE_TYPE` is `CANVAS`, treat the PNG step as an expected graceful skip. Structural diff still runs; visual comparison only runs when both screenshots exist.
 
 ### 4. Run structural diff
 

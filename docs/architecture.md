@@ -15,7 +15,7 @@ Figma API ──> node.json ──> frame.md ──> QMD index ──> MCP serve
 ## Data Flow
 
 1. **Snapshot** captures the raw Figma node tree as `node.json` and exports a PNG screenshot.
-2. **generate-frame-md.js** extracts text, components, colors, buttons, forms, layout, flows, and description from `node.json` and writes a searchable `frame.md` document.
+2. **generate-frame-md.js** extracts text, components, colors, buttons, forms, layout, flows, and description from `node.json` and writes a searchable `frame.md` document. Large SECTION/CANVAS nodes emit explicit degraded warnings instead of silently pretending full fidelity.
 3. **QMD** indexes every `frame.md` for hybrid search (FTS5 full-text + vector similarity + reranking).
 4. **MCP server** (`scripts/mcp-server.mjs`) wraps QMD and the local data store, exposing tools that Claude can call during a conversation.
 
@@ -45,14 +45,18 @@ Figma API ──> node.json ──> frame.md ──> QMD index ──> MCP serve
 | Tool | Purpose |
 |------|---------|
 | `search` | Semantic search across indexed frames via QMD (FTS5 + vector) |
-| `get_frame` | Get full frame.md content by node ID |
+| `get_frame` | Get full frame.md content by node ID, or a compact summary via `summary: true` |
 | `get_flows` | Screen flow connections (CONNECTOR lines + prototype transitions) |
 | `list_frames` | Browse all indexed frames with metadata |
 | `save` | Ingest a Figma node from Figma MCP into the local database |
 
 ## Flow Detection
 
-CONNECTOR nodes in the Figma file tree have `connectorStart.endpointNodeId` and `connectorEnd.endpointNodeId`. Prototype transitions use `transitionNodeID` on interactive elements. `extract-flows.js` resolves endpoints to their parent frames and writes `flows.json`.
+CONNECTOR nodes in the Figma file tree have `connectorStart.endpointNodeId` and `connectorEnd.endpointNodeId`. Prototype transitions use `transitionNodeID` on interactive elements. `extract-flows.js` is the source of truth for persisted flow semantics: it resolves endpoints to their parent frames and excludes self-loops before writing `flows.json`. The MCP server only presents subsets of that filtered edge set.
+
+## Hook routing
+
+`hooks/hooks.json` registers prompt-time routing guidance and a subagent routing injector. The injector prepends variant-specific figma-differ guidance for spawned subagents while remaining fail-open and idempotent.
 
 ## Figma MCP Bridge
 

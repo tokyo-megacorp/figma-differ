@@ -58,15 +58,27 @@ bash $CLAUDE_PLUGIN_ROOT/scripts/figma-api.sh fetch_node_json <fileKey> <nodeId>
 
 If this fails, show the error and stop.
 
+After saving `node.json`, inspect the node type:
+
+```bash
+NODE_TYPE=$(jq -r '.nodes["<nodeId>"].document.type // .document.type // empty' "$SNAP_DIR/node.json")
+```
+
+If `NODE_TYPE` is `CANVAS`, warn the user:
+
+```text
+This snapshot targets a full page (CANVAS). PNG export will be skipped and search quality is usually better if you index child frames individually via /figma-differ:index first.
+```
+
 ### 5. Fetch PNG screenshot
 
 ```bash
-bash $CLAUDE_PLUGIN_ROOT/scripts/figma-api.sh fetch_node_png <fileKey> <nodeId> "$SNAP_DIR/screenshot.png"
+bash $CLAUDE_PLUGIN_ROOT/scripts/figma-api.sh fetch_node_png <fileKey> <nodeId> "$SNAP_DIR/screenshot.png" "${NODE_TYPE:-}"
 ```
 
 If this fails, warn the user but continue — JSON snapshot is still useful for structural diffs.
 
-**Note:** If the node type is CANVAS (a full page), skip the PNG export — Figma's Images API does not support exporting entire pages. Log: "Skipping PNG export for CANVAS node (pages cannot be exported as images)."
+**Note:** If the node type is CANVAS (a full page), the script now skips the PNG export gracefully and logs: "Skipping PNG export for CANVAS node (pages cannot be exported as images)."
 
 ### 6. Create Slack parent thread (if configured)
 

@@ -11,6 +11,7 @@ allowed-tools:
   - Read
   - Write
   - Skill
+  - Agent
 ---
 
 ## Sync Tracked Figma Files
@@ -22,6 +23,9 @@ allowed-tools:
 **If no URL:** read `~/.figma-differ/tracked.json` and sync all tracked files. If no tracked files exist, tell the user to run `/figma-differ:track <url>` first.
 
 ### 2. For each file to sync
+
+Keep long-running refresh steps in forked execution lanes where possible so the main conversation only reports progress and final counts.
+When task/progress tracking is available, use it for milestones such as `Re-indexing`, `Re-snapshotting`, `Generating docs`, and `Refreshing search`.
 
 #### 2a. Re-index
 
