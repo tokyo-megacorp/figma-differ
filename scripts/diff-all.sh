@@ -88,3 +88,11 @@ echo "Fetch complete. Running structural diff..." >&2
 # Step 3: Run bulk-diff — output JSON to stdout AND save to latest-diff-all.json
 JSON_OUT="${BASE_DIR}/latest-diff-all.json"
 node "$SCRIPT_DIR/bulk-diff.js" "$FILE_KEY" "$CURRENT_DIR" $TOP_FLAG | tee "$JSON_OUT"
+
+# Regenerate frame.md docs with updated state (best-effort)
+if command -v qmd &>/dev/null; then
+  echo "Updating search index..." >&2
+  node "$SCRIPT_DIR/generate-frame-md.js" "$FILE_KEY" >&2 || true
+  source "$SCRIPT_DIR/lib/qmd.sh"
+  qmd_reindex
+fi

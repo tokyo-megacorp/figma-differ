@@ -71,6 +71,18 @@ Move each downloaded PNG to its frame's snapshot directory and clean up:
 
 After all PNGs are moved: `rm -rf "$BATCH_DIR" "$TREE_FILE"`
 
+### 5.5. Generate frame.md documents (for QMD search)
+
+If QMD is available, generate searchable markdown for each frame:
+
+```bash
+node $CLAUDE_PLUGIN_ROOT/scripts/generate-frame-md.js <fileKey>
+source $CLAUDE_PLUGIN_ROOT/scripts/lib/qmd.sh
+qmd_reindex
+```
+
+This is best-effort — if QMD is not installed, skip silently. The frame.md files are still useful as human-readable summaries even without QMD.
+
 ### 6. Store comments
 
 Pipe directly to file (do NOT store in shell variable — large comment payloads will exceed argument limits):
