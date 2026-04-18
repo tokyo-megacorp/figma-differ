@@ -43,7 +43,12 @@ TaskCreate("Check comment changes",   activeForm: "Comparing comment threads sin
 TaskCreate("Generate change report",  activeForm: "Ranking changes by severity...")
 ```
 
-Execute sequentially. Structural diff and comment delta can use haiku. Vision analysis uses the main model (needs image understanding).
+**Task lifecycle:**
+1. Create ALL tasks upfront (pending)
+2. Before each phase: `TaskUpdate(taskId, status: "in_progress")`
+3. Dispatch `Agent(model: "haiku")` for mechanical work (fetch, structural diff, comments). Vision analysis uses the main model (needs image understanding).
+4. After each phase returns: `TaskUpdate(taskId, status: "completed")`
+5. After ALL phases: verify no tasks left in_progress — every task must be completed or deleted before the final summary
 
 ### 3. Fetch current file tree (1 API call)
 

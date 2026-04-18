@@ -40,7 +40,12 @@ Execute each phase sequentially — each depends on the previous. Mark tasks `in
 
 ### 3. Phase execution
 
-Each phase dispatches an `Agent(model: "haiku")` subagent. The agent runs the commands and reports only counts — never raw JSON or file contents.
+**Task lifecycle:**
+1. Create ALL tasks upfront (pending)
+2. Before each phase: `TaskUpdate(taskId, status: "in_progress")`
+3. Dispatch `Agent(model: "haiku")` — agent reports only counts, never raw output
+4. After agent returns: `TaskUpdate(taskId, status: "completed")`
+5. After ALL phases: verify no tasks left in_progress — every task must be completed or deleted before the final summary
 
 #### Phase 1: Fetch file tree
 

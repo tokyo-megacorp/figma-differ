@@ -34,7 +34,12 @@ TaskCreate("Fetch file tree",       activeForm: "Fetching <fileName> from Figma 
 TaskCreate("Catalog all frames",    activeForm: "Walking pages and extracting frames...")
 ```
 
-Each phase: mark in_progress, dispatch Agent(model: "haiku"), mark completed. Agent reports frame count only.
+**Task lifecycle:**
+1. Create ALL tasks upfront (pending)
+2. Before each phase: `TaskUpdate(taskId, status: "in_progress")`
+3. Dispatch `Agent(model: "haiku")` — agent reports only counts, never raw output
+4. After agent returns: `TaskUpdate(taskId, status: "completed")`
+5. After ALL phases: verify no tasks left in_progress — every task must be completed or deleted before the final summary
 
 ### 3. Fetch the full file tree
 
