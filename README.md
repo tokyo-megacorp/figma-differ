@@ -201,6 +201,17 @@ subagent-variants/            Prompt fragments injected by hook for spawned agen
 ~/.figma-differ/              Runtime snapshot storage (not git-tracked)
 ```
 
+## Review payload boundary
+
+The review cockpit now builds a versioned renderer-facing payload (`reviewPayload.v1`) before rendering `review.html`.
+
+- Historical review mode is anchored on `review.json`
+- Latest-only triage is sourced from `latest-diff-all.json`
+- Structural diffs, flows, frame summaries, comments, and metadata enrich the selected view
+- Optional enrichments fail soft and do not block static artifact generation
+
+The current dashboard shell still ships as a self-contained `file://` artifact; renderer technology changes are intentionally gated behind parity proof.
+
 **Key implementation notes:**
 - `figma-api.sh` calls `api.figma.com/v1` directly with `--http1.1` to avoid HTTP/2 stream errors
 - Node IDs: `:` is URL-encoded as `%3A` for API calls, `_` for filesystem paths

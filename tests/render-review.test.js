@@ -5,6 +5,7 @@
 
 const { execFileSync } = require('child_process')
 const path = require('path')
+const fs = require('fs')
 
 const SCRIPT = path.join(__dirname, '..', 'scripts', 'render-review.js')
 let passed = 0
@@ -47,6 +48,12 @@ try {
 } catch (e) {
   assert(e.status === 1, 'flags accepted, fails on missing index')
 }
+
+// Test 4: generated fixture embeds reviewPayload.v1 marker
+execFileSync('node', [path.join(__dirname, 'helpers', 'generate-dashboard-fixture.js')], { stdio: 'pipe' })
+const html = fs.readFileSync('/tmp/test-review.html', 'utf8')
+assert(html.includes('reviewPayload.v1'), 'generated review embeds reviewPayload.v1')
+assert(html.includes('"sourceAuthority"'), 'generated review embeds source authority metadata')
 
 console.log(`\n${passed} passed, ${failed} failed`)
 process.exit(failed > 0 ? 1 : 0)

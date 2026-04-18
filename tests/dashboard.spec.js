@@ -1,7 +1,14 @@
 // @ts-check
 const { test, expect } = require('@playwright/test')
+const { execFileSync } = require('child_process')
+const path = require('path')
 
 const HTML_PATH = '/tmp/test-review.html'
+const FIXTURE_SCRIPT = path.join(__dirname, 'helpers', 'generate-dashboard-fixture.js')
+
+test.beforeAll(() => {
+  execFileSync('node', [FIXTURE_SCRIPT], { stdio: 'inherit' })
+})
 
 test.describe('Dashboard v1 — Index Screen', () => {
   test.beforeEach(async ({ page }) => {

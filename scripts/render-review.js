@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// render-review.js — Generate a self-contained review.html from fig-diff data
+// render-review.js — Generate a self-contained review.html from reviewPayload.v1
 //
 // Usage:
 //   node render-review.js <fileKey> [--no-images] [--no-open] [--output path]
@@ -8,6 +8,7 @@
 //   ~/.figma-differ/<fileKey>/index.json
 //   ~/.figma-differ/<fileKey>/diffs/<range>/review.json
 //   ~/.figma-differ/<fileKey>/diffs/<range>/<nodeId>/structural_diff.json
+//   optional enrichments via reviewPayload.v1 adapters
 //
 // Outputs:
 //   review.html (self-contained, shareable)
@@ -16,6 +17,7 @@ const fs = require('fs')
 const path = require('path')
 const { execSync } = require('child_process')
 const os = require('os')
+const { buildReviewPayloadV1 } = require('./lib/review-payload')
 
 // ── CLI args ────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2)
@@ -33,166 +35,40 @@ if (!fileKey) {
 
 const STORE = path.join(os.homedir(), '.figma-differ', fileKey)
 
-// ── Load index ──────────────────────────────────────────────────────────────
-function loadIndex() {
-  const indexPath = path.join(STORE, 'index.json')
-  if (!fs.existsSync(indexPath)) {
-    console.error(`FAIL: index.json not found at ${indexPath}`)
-    process.exit(1)
-  }
-  return JSON.parse(fs.readFileSync(indexPath, 'utf8'))
-}
-
-// ── Discover all review.json files ──────────────────────────────────────────
-function discoverReviews() {
-  const diffsDir = path.join(STORE, 'diffs')
-  if (!fs.existsSync(diffsDir)) return []
-
-  return fs.readdirSync(diffsDir)
-    .filter(d => fs.statSync(path.join(diffsDir, d)).isDirectory())
-    .map(range => {
-      const reviewPath = path.join(diffsDir, range, 'review.json')
-      if (!fs.existsSync(reviewPath)) return null
-      const review = JSON.parse(fs.readFileSync(reviewPath, 'utf8'))
-      return { range, review, reviewPath }
-    })
-    .filter(Boolean)
-    .sort((a, b) => b.range.localeCompare(a.range)) // newest first
-}
-
-// ── Load structural diffs for a review ──────────────────────────────────────
-function loadStructuralDiffs(review) {
-  const diffs = {}
-  for (const entry of review.decisions || []) {
-    if (entry.diffPath && fs.existsSync(entry.diffPath)) {
-      try {
-        diffs[entry.nodeId] = JSON.parse(fs.readFileSync(entry.diffPath, 'utf8'))
-      } catch (e) {
-        // Skip unreadable diffs
-      }
-    }
-  }
-  return diffs
-}
-
-// ── Fetch image URLs via figma-api.sh ───────────────────────────────────────
-function fetchImageUrls(nodeIds) {
-  if (noImages || nodeIds.length === 0) return {}
-  const scriptDir = path.dirname(process.argv[1])
-  const apiScript = path.join(scriptDir, 'figma-api.sh')
-  const idsStr = nodeIds.join(',')
-  try {
-    const result = execSync(
-      `bash "${apiScript}" fetch_image_urls "${fileKey}" "${idsStr}"`,
-      { encoding: 'utf8', timeout: 120000 }
-    )
-    return JSON.parse(result)
-  } catch (e) {
-    console.error(`WARN: failed to fetch image URLs: ${e.message}`)
-    return {}
-  }
-}
-
-// ── Fetch comments via figma-api.sh ────────────────────────────────────────
-function fetchComments() {
-  const scriptDir = path.dirname(process.argv[1])
-  const apiScript = path.join(scriptDir, 'figma-api.sh')
-  try {
-    const result = execSync(
-      `bash "${apiScript}" fetch_comments "${fileKey}"`,
-      { encoding: 'utf8', timeout: 120000 }
-    )
-    const data = JSON.parse(result)
-    const comments = (data.comments || []).map(c => ({
-      id: c.id,
-      message: c.message,
-      user: c.user ? c.user.handle : 'unknown',
-      avatarUrl: c.user ? (c.user.img_url || null) : null,
-      createdAt: c.created_at,
-      resolvedAt: c.resolved_at || null,
-      nodeId: c.client_meta ? c.client_meta.node_id : null,
-      orderId: c.order_id || null,
-      parentId: c.parent_id || null
-    }))
-    return comments
-  } catch (e) {
-    console.error(`WARN: failed to fetch comments: ${e.message}`)
-    return []
-  }
-}
-
-function fetchFileMetadata() {
-  const scriptDir = path.dirname(process.argv[1])
-  const apiScript = path.join(scriptDir, 'figma-api.sh')
-  try {
-    const result = execSync(
-      `bash "${apiScript}" fetch_file_tree "${fileKey}" 1`,
-      { encoding: 'utf8', timeout: 120000 }
-    )
-    const data = JSON.parse(result)
-    return {
-      lastModified: data.lastModified || null,
-      thumbnailUrl: data.thumbnailUrl || null,
-      fileName: data.name || null
-    }
-  } catch (e) {
-    console.error(`WARN: failed to fetch file metadata: ${e.message}`)
-    return { lastModified: null, thumbnailUrl: null, fileName: null }
-  }
-}
-
 // ── Main ────────────────────────────────────────────────────────────────────
 function main() {
-  const index = loadIndex()
-  const reviews = discoverReviews()
-
-  if (reviews.length === 0) {
-    console.error('FAIL: no review.json files found. Run fig-diff diff-all first.')
+  let payload
+  try {
+    payload = buildReviewPayloadV1({
+      fileKey,
+      storePath: STORE,
+      scriptDir: path.dirname(process.argv[1]),
+      noImages,
+      noComments,
+    })
+  } catch (error) {
+    console.error(`FAIL: ${error.message}`)
     process.exit(1)
   }
 
-  // Load structural diffs for all reviews
-  const allDiffs = {}
-  for (const { range, review } of reviews) {
-    allDiffs[range] = loadStructuralDiffs(review)
-  }
-
-  // Collect all changed node IDs across all reviews for image fetching
   const changedNodeIds = new Set()
-  for (const { review } of reviews) {
-    for (const d of review.decisions || []) {
-      if (d.severity !== 'unchanged') changedNodeIds.add(d.nodeId)
+  for (const review of payload.reviews) {
+    for (const decision of review.decisions || []) {
+      if (decision.severity !== 'unchanged') changedNodeIds.add(decision.nodeId)
     }
   }
 
-  console.error(`Loading ${reviews.length} review(s), ${changedNodeIds.size} changed frames...`)
-  const imageUrls = fetchImageUrls([...changedNodeIds])
-  const fetchedCount = Object.keys(imageUrls).length
+  console.error(`Loading ${payload.reviews.length} review(s), ${changedNodeIds.size} changed frames...`)
+  const fetchedCount = Object.keys(payload.imageUrls || {}).length
   if (!noImages) {
     console.error(`Fetched ${fetchedCount} image URLs`)
   }
 
-  // Fetch comments
-  const comments = noComments ? [] : fetchComments()
-  if (comments.length > 0) {
-    console.error(`Fetched ${comments.length} comments`)
+  if ((payload.comments || []).length > 0) {
+    console.error(`Fetched ${payload.comments.length} comments`)
   }
 
-  // Fetch file metadata (lastModified, thumbnailUrl, fileName)
-  const metadata = fetchFileMetadata()
-
-  // Build the embedded data object
-  const embeddedData = {
-    index,
-    reviews: reviews.map(r => r.review),
-    diffs: allDiffs,
-    imageUrls,
-    comments,
-    metadata,
-    generatedAt: new Date().toISOString()
-  }
-
-  const html = generateHtml(embeddedData)
+  const html = generateHtml(payload)
 
   // Write output
   const outFile = outputPath || path.join(STORE, 'review.html')

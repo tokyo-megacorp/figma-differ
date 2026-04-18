@@ -19,6 +19,16 @@ Figma API ──> node.json ──> frame.md ──> QMD index ──> MCP serve
 3. **QMD** indexes every `frame.md` for hybrid search (FTS5 full-text + vector similarity + reranking).
 4. **MCP server** (`scripts/mcp-server.mjs`) wraps QMD and the local data store, exposing tools that Claude can call during a conversation.
 
+## Review payload boundary
+
+Dashboard rendering is moving behind a versioned payload contract:
+
+- `reviewPayload.v1` is the renderer-facing shape
+- `review.json` is authoritative for historical review identity
+- `latest-diff-all.json` is authoritative for latest-only triage
+- structural diffs, flows, `frame.md`, comments, and metadata enrich but do not override review identity
+- optional enrichments fail soft so static artifact generation still succeeds
+
 ## Storage Layout
 
 ```
