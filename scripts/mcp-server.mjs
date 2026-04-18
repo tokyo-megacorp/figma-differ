@@ -15,9 +15,10 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
 import { execSync } from 'child_process'
-import { readFileSync, readdirSync, existsSync, statSync } from 'fs'
+import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync, statSync } from 'fs'
 import { join, basename } from 'path'
 import { homedir } from 'os'
+import { execSync as execSyncRaw } from 'child_process'
 
 const BASE_DIR = join(homedir(), '.figma-differ')
 
@@ -87,7 +88,70 @@ function qmdSearch(query, limit = 10) {
 
 const server = new McpServer({
   name: 'figma-differ',
-  version: '0.1.0',
+  version: '0.2.0',
+  instructions: `figma-differ is a local Figma design database with semantic search, change tracking, and flow detection.
+
+## When to use figma-differ vs Figma MCP
+
+| Task | Tool |
+|------|------|
+| Fetch LIVE state of a design | Figma MCP: get_design_context |
+| SEARCH across all indexed frames | figma-differ: search |
+| Check FLOWS between screens | figma-differ: get_flows |
+| Get cached frame details (no API call) | figma-differ: get_frame |
+| Save a fetched design locally | figma-differ: save |
+| Read design tokens / variables | Figma MCP: get_variable_defs |
+| Browse all frames in a file | figma-differ: list_frames |
+
+## Auto-save: Figma MCP → figma-differ
+
+IMPORTANT: After calling Figma MCP's get_design_context or get_metadata, ALWAYS call figma-differ save to cache the result locally. This makes the design searchable and diffable.
+
+### Field mapping from get_design_context response:
+
+The get_design_context response contains code (React+Tailwind reference), a screenshot, and metadata. Extract these fields for the save call:
+
+\`\`\`
+figma-differ save:
+  file_key    ← fileKey from the Figma URL
+  node_id     ← nodeId from the Figma URL (e.g., "1431:33250")
+  name        ← the node/frame name from the response or URL slug
+  page        ← page name if known (from get_metadata or context)
+  node_type   ← "FRAME", "COMPONENT", "SECTION", etc.
+  node_json   ← full JSON response body (stringified) if available
+  metadata:
+    description  ← one-line summary of what the screen shows (write this yourself from the screenshot/code)
+    components   ← component names visible in the code (e.g., ["Button", "Input", "Modal"])
+    text_content ← visible text strings from the code (e.g., ["Sign In", "Email", "Password"])
+\`\`\`
+
+### Field mapping from get_metadata response:
+
+get_metadata returns XML with node structure. Extract:
+\`\`\`
+  name       ← from the root node's name attribute
+  node_type  ← from the root node's type attribute
+  page       ← from the parent CANVAS node name
+\`\`\`
+
+### Example flow:
+
+1. User says "implement this Figma screen" with a URL
+2. Parse fileKey and nodeId from URL
+3. Call Figma MCP get_design_context(fileKey, nodeId)
+4. From the response, extract component names and text content
+5. Call figma-differ save(file_key, node_id, name, metadata)
+6. The screen is now in the local database — searchable, diffable, trackable
+7. Proceed with implementation using the design context
+
+## Typical patterns
+
+- "Find the settings screen" → figma-differ search
+- "What does this screen look like now?" → Figma MCP get_design_context → figma-differ save
+- "What changed in the login flow?" → figma-differ get_flows + search
+- "Implement this Figma screen" → Figma MCP get_design_context → figma-differ save → implement
+- "Which screens use the Modal component?" → figma-differ search "Modal component"
+- "Save this design locally" → Figma MCP get_design_context → figma-differ save`,
 })
 
 // Tool: search
@@ -242,6 +306,127 @@ server.tool(
     }
 
     return { content: [{ type: 'text', text: results.join('\n') }] }
+  }
+)
+
+// Tool: save
+server.tool(
+  'save',
+  `Save a Figma node to the local figma-differ database for search and diffing.
+Call this after fetching a design via Figma MCP (get_design_context) to cache it locally.
+Accepts any Figma node — frames, components, sections, groups, pages.
+The node is stored as a snapshot and indexed for semantic search.`,
+  {
+    file_key: z.string().describe('Figma file key'),
+    node_id: z.string().describe('Figma node ID (e.g., "1431:33250")'),
+    name: z.string().describe('Human-readable name for the node'),
+    page: z.string().optional().describe('Page name the node belongs to'),
+    node_type: z.string().optional().default('FRAME').describe('Node type: FRAME, COMPONENT, SECTION, etc.'),
+    node_json: z.string().optional().describe('Full node JSON from Figma API (stringified). If provided, stored as snapshot.'),
+    metadata: z.object({
+      description: z.string().optional(),
+      components: z.array(z.string()).optional(),
+      text_content: z.array(z.string()).optional(),
+    }).optional().describe('Optional metadata to enrich the frame.md for search'),
+  },
+  async ({ file_key, node_id, name, page, node_type, node_json, metadata }) => {
+    const nodeIdSafe = node_id.replace(/:/g, '_')
+    const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '').replace('T', 'T').slice(0, 15) + 'Z'
+    const fileDir = join(BASE_DIR, file_key)
+    const frameDir = join(fileDir, nodeIdSafe)
+    const snapshotDir = join(frameDir, timestamp)
+
+    try {
+      // Create directories
+      mkdirSync(snapshotDir, { recursive: true })
+
+      // Save node JSON if provided
+      if (node_json) {
+        writeFileSync(join(snapshotDir, 'node.json'), node_json, 'utf8')
+      }
+
+      // Update or create index.json
+      const indexPath = join(fileDir, 'index.json')
+      let index = { fileKey: file_key, fileName: '', lastIndexed: timestamp, frames: [] }
+      if (existsSync(indexPath)) {
+        index = JSON.parse(readFileSync(indexPath, 'utf8'))
+      }
+
+      // Add or update this frame in the index
+      const existing = index.frames.findIndex(f => f.id === node_id)
+      const entry = { id: node_id, name, type: node_type || 'FRAME', page: page || '' }
+      if (existing >= 0) {
+        index.frames[existing] = entry
+      } else {
+        index.frames.push(entry)
+      }
+      index.lastIndexed = timestamp
+      writeFileSync(indexPath, JSON.stringify(index, null, 2), 'utf8')
+
+      // Generate frame.md for search indexing
+      const slug = (index.fileName || '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
+      const figmaUrl = `https://www.figma.com/design/${file_key}/${slug}?node-id=${node_id.replace(/:/g, '-')}`
+
+      const mdLines = [
+        '---',
+        `title: "${name.replace(/"/g, '\\"')}"`,
+      ]
+
+      // Build description from metadata or name
+      const descParts = [node_type?.toLowerCase() || 'frame']
+      if (metadata?.components?.length) descParts.push(`with ${metadata.components.slice(0, 5).join(', ')}`)
+      if (metadata?.description) descParts.push(metadata.description)
+      mdLines.push(`description: "${descParts.join('; ').replace(/"/g, '\\"')}"`)
+
+      mdLines.push(
+        `figma_file: "${file_key}"`,
+        `figma_file_name: "${(index.fileName || '').replace(/"/g, '\\"')}"`,
+        `figma_node: "${node_id}"`,
+        `figma_page: "${(page || '').replace(/"/g, '\\"')}"`,
+        `figma_type: "${node_type || 'FRAME'}"`,
+        `figma_url: "${figmaUrl}"`,
+        `snapshot_timestamp: "${timestamp}"`,
+        `source: "figma-mcp"`,
+        '---',
+        '',
+        `# ${name}`,
+        '',
+        `> ${descParts.join('; ')}`,
+        '',
+        `Page: ${page || 'Unknown'} | Type: ${node_type || 'FRAME'}`,
+        '',
+      )
+
+      if (metadata?.components?.length) {
+        mdLines.push('## Components Used')
+        for (const c of metadata.components) mdLines.push(`- ${c}`)
+        mdLines.push('')
+      }
+
+      if (metadata?.text_content?.length) {
+        mdLines.push('## Text Content')
+        for (const t of metadata.text_content.slice(0, 50)) mdLines.push(`- "${t}"`)
+        mdLines.push('')
+      }
+
+      writeFileSync(join(frameDir, 'frame.md'), mdLines.join('\n'), 'utf8')
+
+      // Try to update QMD index (best-effort)
+      try {
+        execSyncRaw('qmd update 2>/dev/null && qmd embed 2>/dev/null', {
+          encoding: 'utf8', timeout: 30000, stdio: 'pipe'
+        })
+      } catch { /* QMD not available, that's fine */ }
+
+      return {
+        content: [{
+          type: 'text',
+          text: `Saved: ${name} (${node_id}) to figma-differ\n  Type: ${node_type || 'FRAME'}\n  Page: ${page || 'Unknown'}\n  Snapshot: ${snapshotDir}\n  Searchable: yes (frame.md indexed)\n\nThis node is now searchable via figma-differ search.`
+        }]
+      }
+    } catch (e) {
+      return { content: [{ type: 'text', text: `Failed to save: ${e.message}` }] }
+    }
   }
 )
 
