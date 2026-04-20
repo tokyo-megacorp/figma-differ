@@ -239,7 +239,7 @@ The REST API path produces less semantic richness than Figma MCP (no React/Tailw
 
 ## Auto-save: Figma MCP → figma-differ
 
-IMPORTANT: After calling Figma MCP's get_design_context or get_metadata, ALWAYS call figma-differ save to cache the result locally. This makes the design searchable and diffable.
+IMPORTANT: After calling Figma MCP's get_design_context or get_metadata, ALWAYS call figma-differ save to cache the result locally. This makes the design searchable and diffable. If you also called get_variable_defs, pass the result as variables_json — it will be stored as variables.json and surfaced as a Design Tokens section in frame.md, making design tokens searchable.
 
 CRITICAL — name field: ALWAYS extract the real node name from the response. NEVER use a URL slug, node-id string, or placeholder like "Node 1234-5678". If the name is unknown, call get_design_context or fetch_node_json first to discover it.
 
@@ -500,7 +500,7 @@ server.tool(
   }
 )
 
-function writeNodeSnapshot({ snapshotDir, nodeJsonPath, node_json, node_id }) {
+function writeNodeSnapshot({ snapshotDir, nodeJsonPath, node_json, node_id, variables_json }) {
   mkdirSync(snapshotDir, { recursive: true })
   if (node_json) {
     writeFileSync(nodeJsonPath, node_json, 'utf8')
@@ -511,6 +511,9 @@ function writeNodeSnapshot({ snapshotDir, nodeJsonPath, node_json, node_id }) {
         { encoding: 'utf8', timeout: FLOWS_EXTRACTION_TIMEOUT_MS, stdio: 'pipe' }
       )
     } catch { /* flows extraction is non-critical */ }
+  }
+  if (variables_json) {
+    writeFileSync(join(snapshotDir, 'variables.json'), variables_json, 'utf8')
   }
 }
 
@@ -564,7 +567,7 @@ function buildFrameMd({ file_key, node_id, name, page, node_type, metadata, inde
   writeFileSync(join(frameDir, 'frame.md'), mdLines.join('\n'), 'utf8')
 }
 
-function persistNode({ file_key, node_id, name, page, node_type, node_json, metadata, index: sharedIndex }) {
+function persistNode({ file_key, node_id, name, page, node_type, node_json, metadata, index: sharedIndex, variables_json }) {
   const nodeIdSafe = node_id.replace(/:/g, '_')
   const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '').replace('T', 'T').slice(0, 15) + 'Z'
   const fileDir = join(BASE_DIR, file_key)
@@ -572,7 +575,7 @@ function persistNode({ file_key, node_id, name, page, node_type, node_json, meta
   const snapshotDir = join(frameDir, timestamp)
   const nodeJsonPath = join(snapshotDir, 'node.json')
 
-  writeNodeSnapshot({ snapshotDir, nodeJsonPath, node_json, node_id })
+  writeNodeSnapshot({ snapshotDir, nodeJsonPath, node_json, node_id, variables_json })
   const { index } = updateFrameIndex({ fileDir, file_key, node_id, name, node_type, page, timestamp, sharedIndex })
   buildFrameMd({ file_key, node_id, name, page, node_type, metadata, index, timestamp, frameDir })
 
@@ -629,13 +632,14 @@ The node is stored as a snapshot and indexed for semantic search.`,
     }).optional().describe('Optional metadata to enrich the frame.md for search'),
     save_children: z.boolean().optional().default(false).describe('When true, also save direct children of the node that match child_types as separate entries.'),
     child_types: z.array(z.string()).optional().describe('Node types to save as children when save_children is true. Defaults to ["SECTION", "FRAME", "COMPONENT"].'),
+    variables_json: z.string().optional().describe('JSON string from get_variable_defs — design tokens (colors, spacing, typography) for this node. Stored as variables.json and surfaced in frame.md as Design Tokens section.'),
   },
-  async ({ file_key, node_id, name, page, node_type, node_json, node_json_path, metadata, save_children, child_types }) => {
+  async ({ file_key, node_id, name, page, node_type, node_json, node_json_path, metadata, save_children, child_types, variables_json }) => {
     if (!node_json && node_json_path) {
       node_json = readFileSync(node_json_path, 'utf8')
     }
     try {
-      const { snapshotDir, index } = persistNode({ file_key, node_id, name, page, node_type, node_json, metadata })
+      const { snapshotDir, index } = persistNode({ file_key, node_id, name, page, node_type, node_json, metadata, variables_json })
       tryEnrichFrameMarkdown(file_key, node_id)
 
       // Try to update QMD index (best-effort)

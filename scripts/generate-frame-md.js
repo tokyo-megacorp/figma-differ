@@ -404,7 +404,7 @@ const MAX_FRAME_TEXTS = 50
 const MAX_PAGE_HIERARCHY = 40
 const MAX_FRAME_HIERARCHY = 80
 
-function generateFrameMd(document, frame, index, timestamp) {
+function generateFrameMd(document, frame, index, timestamp, variables) {
   const nodes = walkNodes(document)
   const isPage = document.type === 'CANVAS'
 
@@ -535,6 +535,20 @@ function generateFrameMd(document, frame, index, timestamp) {
     lines.push('')
   }
 
+  // Design Tokens section (from get_variable_defs via variables.json)
+  if (variables && variables.length > 0) {
+    lines.push('## Design Tokens')
+    const byType = {}
+    for (const t of variables) {
+      if (!byType[t.type]) byType[t.type] = []
+      byType[t.type].push(t.name)
+    }
+    for (const [type, names] of Object.entries(byType)) {
+      lines.push(`**${type}:** ${names.slice(0, 30).join(', ')}`)
+    }
+    lines.push('')
+  }
+
   // Color palette section
   if (colors.palette.length > 0) {
     lines.push('## Color Palette')
@@ -635,10 +649,32 @@ function findLatestSnapshot(nodeIdSafe) {
   for (let i = timestamps.length - 1; i >= 0; i--) {
     const nodeJson = path.join(frameDir, timestamps[i], 'node.json')
     if (fs.existsSync(nodeJson)) {
-      return { path: nodeJson, timestamp: timestamps[i] }
+      const variablesPath = path.join(frameDir, timestamps[i], 'variables.json')
+      return {
+        path: nodeJson,
+        timestamp: timestamps[i],
+        variablesPath: fs.existsSync(variablesPath) ? variablesPath : null,
+      }
     }
   }
   return null
+}
+
+function extractDesignTokens(variablesJson) {
+  let data
+  try { data = JSON.parse(variablesJson) } catch { return null }
+  const tokens = []
+  const vars = data.variables || data.meta?.variables || []
+  if (Array.isArray(vars)) {
+    for (const v of vars) {
+      if (v.name && v.resolvedType) tokens.push({ name: v.name, type: v.resolvedType })
+    }
+  } else if (vars && typeof vars === 'object') {
+    for (const v of Object.values(vars)) {
+      if (v.name) tokens.push({ name: v.name, type: v.resolvedType || 'UNKNOWN' })
+    }
+  }
+  return tokens.length ? tokens : null
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────
@@ -680,7 +716,10 @@ function main() {
         continue
       }
 
-      const md = generateFrameMd(document, frame, index, snapshot.timestamp)
+      const variables = snapshot.variablesPath
+        ? extractDesignTokens(fs.readFileSync(snapshot.variablesPath, 'utf8'))
+        : null
+      const md = generateFrameMd(document, frame, index, snapshot.timestamp, variables)
       const outPath = path.join(BASE_DIR, nodeIdSafe, 'frame.md')
       fs.writeFileSync(outPath, md, 'utf8')
       generated++
