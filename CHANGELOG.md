@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.1] — 2026-04-20 — Mode Auto-Detection & Local-First Routing
+
+### Added
+- `check_auth` MCP tool — reports REST API token status, local cache frame count, and QMD availability; guides session setup without manual config inspection
+- MCP server instructions: "Mode Auto-Detection" section with 4-tier priority chain (local cache → Figma MCP → REST API → offline) and per-operation table for every Figma task type
+
+### Changed
+- `mcp-routing.sh` hook: inject local-first + auto-save rules on every turn — search local index before any API call; auto-save after every Figma MCP or REST fetch; prototype interactions always routed to REST
+
 ## [0.4.0] — 2026-04-20 — Figma MCP Integration & Design Tokens
 
 ### Added
