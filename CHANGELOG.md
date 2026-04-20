@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.3] — 2026-04-20 — REST API Node Simplifier
+
+### Added
+- `scripts/simplify-node.mjs` — strips noisy Figma API JSON (bbox, transforms, constraints, layout props, strokes, effects) down to semantic essentials (`id`, `name`, `type`, `characters`, `componentId`, SOLID `fills`, `children`)
+- REST API fallback instructions in MCP server now pipe through `simplify-node.mjs` before `save`
+
 ## [0.2.2] — 2026-04-20 — Figma MCP Fallback to REST API
 
 ### Added

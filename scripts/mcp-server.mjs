@@ -130,7 +130,7 @@ function qmdSearch(query, limit = 10) {
 
 const server = new McpServer({
   name: 'figma-differ',
-  version: '0.2.2',
+  version: '0.2.3',
   instructions: `figma-differ is a local Figma design database with semantic search, change tracking, and flow detection.
 
 ## When to use figma-differ vs Figma MCP
@@ -150,25 +150,25 @@ const server = new McpServer({
 When Figma MCP is unavailable or returns an error, fall back to the REST API:
 
 \`\`\`
-# Fetch node JSON via REST API
-bash scripts/figma-api.sh fetch_node_json <file_key> <node_id>
+# Fetch, simplify, and save node via REST API
+bash scripts/figma-api.sh fetch_node_json <file_key> <node_id> | node scripts/simplify-node.mjs > /tmp/simplified.json
 
 # Fetch node PNG via REST API
 bash scripts/figma-api.sh fetch_node_png <file_key> <node_id> <output_path>
 \`\`\`
 
-Then call figma-differ save with the result:
+Then call figma-differ save with the simplified result:
 \`\`\`
 figma-differ save:
   file_key  ← same file_key used above
   node_id   ← same node_id used above
-  name      ← document.nodes[node_id].document.name from REST response
-  node_type ← document.nodes[node_id].document.type from REST response
-  node_json ← full JSON response (stringified)
+  name      ← .name from /tmp/simplified.json
+  node_type ← .type from /tmp/simplified.json
+  node_json ← contents of /tmp/simplified.json (stringified)
   metadata:
     description  ← one-line summary derived from the node name and type
-    components   ← extract from children where type is COMPONENT or INSTANCE
-    text_content ← extract all characters fields from TEXT nodes recursively
+    components   ← collect all nodes where type is COMPONENT or INSTANCE (from simplified JSON)
+    text_content ← collect all .characters fields from TEXT nodes recursively (from simplified JSON)
 \`\`\`
 
 The REST API path produces less semantic richness than Figma MCP (no React/Tailwind reference code, no AI description) but provides full node structure for diffing and search.
@@ -279,7 +279,7 @@ server.tool(
         if (isThin) {
           const fk = fm.figma_file || ''
           const nid = fm.figma_node || ''
-          const hint = `\n\n---\nThis frame has shallow data (${nodeCount} node${nodeCount !== 1 ? 's' : ''}). Enrich it:\n\n**Primary (Figma MCP):**\n1. Call Figma MCP get_design_context(fileKey: "${fk}", nodeId: "${nid}")\n2. Call figma-differ save with extracted components and text content\n\n**Fallback (if Figma MCP unavailable or errors):**\n1. Run: \`bash scripts/figma-api.sh fetch_node_json ${fk} ${nid}\`\n2. Extract name, node_type, components (INSTANCE/COMPONENT nodes), text_content (TEXT nodes)\n3. Call figma-differ save with node_json and extracted metadata`
+          const hint = `\n\n---\nThis frame has shallow data (${nodeCount} node${nodeCount !== 1 ? 's' : ''}). Enrich it:\n\n**Primary (Figma MCP):**\n1. Call Figma MCP get_design_context(fileKey: "${fk}", nodeId: "${nid}")\n2. Call figma-differ save with extracted components and text content\n\n**Fallback (if Figma MCP unavailable or errors):**\n1. Run: \`bash scripts/figma-api.sh fetch_node_json ${fk} ${nid} | node scripts/simplify-node.mjs > /tmp/simplified.json\`\n2. Extract name, node_type, components (INSTANCE/COMPONENT nodes), text_content (TEXT nodes) from simplified JSON\n3. Call figma-differ save with node_json ← contents of /tmp/simplified.json and extracted metadata`
           return { content: [{ type: 'text', text: text + hint }] }
         }
 
@@ -292,7 +292,7 @@ server.tool(
       }
     }
 
-    const notFoundMsg = `Frame ${node_id} not found in local cache.\n\n**To fetch it:**\n\n**Primary (Figma MCP):**\n1. Call Figma MCP get_design_context(fileKey: "<file_key>", nodeId: "${node_id}")\n2. Call figma-differ save with the result\n\n**Fallback (if Figma MCP unavailable):**\n1. Run: \`bash scripts/figma-api.sh fetch_node_json <file_key> ${node_id}\`\n2. Call figma-differ save with node_json and extracted metadata`
+    const notFoundMsg = `Frame ${node_id} not found in local cache.\n\n**To fetch it:**\n\n**Primary (Figma MCP):**\n1. Call Figma MCP get_design_context(fileKey: "<file_key>", nodeId: "${node_id}")\n2. Call figma-differ save with the result\n\n**Fallback (if Figma MCP unavailable):**\n1. Run: \`bash scripts/figma-api.sh fetch_node_json <file_key> ${node_id} | node scripts/simplify-node.mjs > /tmp/simplified.json\`\n2. Call figma-differ save with node_json ← contents of /tmp/simplified.json and extracted metadata (name, node_type, components, text_content)`
     return { content: [{ type: 'text', text: notFoundMsg }] }
   }
 )
