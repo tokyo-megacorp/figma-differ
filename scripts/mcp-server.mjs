@@ -462,13 +462,15 @@ server.tool(
                 if (ep && typeof ep === 'object') return ep.name || idToName[ep.id] || ep.id
                 return resolveName(ep)
               }
+              const snapshotNodeId = snapshotFlows.nodeId
               const interactions = (snapshotFlows.interactions || []).filter(i => {
                 if (i.type === 'connector') {
                   const fId = typeof i.from === 'object' ? i.from?.id : i.from
                   const tId = typeof i.to === 'object' ? i.to?.id : i.to
                   return fId && tId && fId !== tId
                 }
-                return !(i.triggerNode?.id && i.destinationId && i.triggerNode.id === i.destinationId)
+                // prototype self-loop: destination resolves back to the snapshot frame itself
+                return i.destinationId !== snapshotNodeId
               })
               const lines = interactions.map(i => i.type === 'connector'
                 ? `connector: ${resolveEndpoint(i.from)} → ${resolveEndpoint(i.to)}`

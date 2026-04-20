@@ -18,7 +18,6 @@ if [[ ! -d "$FILE_DIR" ]]; then
   exit 1
 fi
 
-source "$SCRIPT_DIR/auth.sh" 2>/dev/null || true
 if ! bash "$SCRIPT_DIR/auth.sh" status &>/dev/null; then
   echo "ERROR: No Figma token. Run: bash $SCRIPT_DIR/auth.sh set" >&2
   exit 1

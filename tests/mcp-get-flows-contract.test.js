@@ -32,6 +32,23 @@ function setupTestData() {
       { id: '2:1', name: 'Settings', type: 'FRAME', page: 'Main' },
     ],
   }, null, 2))
+  // Snapshot-level flows.json (used by single-node save path)
+  const snapshotDir = path.join(baseDir, '1_1', '20260418T120000Z')
+  fs.mkdirSync(snapshotDir, { recursive: true })
+  fs.writeFileSync(path.join(snapshotDir, 'flows.json'), JSON.stringify({
+    nodeId: '1:1',
+    extractedAt: '2026-04-20T00:00:00.000Z',
+    totalInteractions: 4,
+    prototypeFlows: 2,
+    connectors: 2,
+    interactions: [
+      { type: 'prototype', trigger: 'ON_CLICK', triggerNode: { id: '99:1', name: 'Self Button' }, destinationId: '1:1' },
+      { type: 'prototype', trigger: 'ON_TAP', triggerNode: { id: '99:2', name: 'Nav Button' }, destinationId: '2:1' },
+      { type: 'connector', from: { id: '1:1', name: 'Profile Tab', type: 'FRAME' }, to: { id: '1:1', name: 'Profile Tab', type: 'FRAME' } },
+      { type: 'connector', from: { id: '1:1', name: 'Profile Tab', type: 'FRAME' }, to: { id: '2:1', name: 'Settings', type: 'FRAME' } },
+    ],
+  }, null, 2))
+
   fs.writeFileSync(path.join(baseDir, 'flows.json'), JSON.stringify({
     fileKey: 'FLOWKEY',
     totalFlows: 2,
@@ -142,6 +159,14 @@ function resultText(res) {
     assert(nodeText.includes('Outgoing'), 'node-scoped flow view keeps outgoing section')
     assert(nodeText.includes('Settings'), 'node-scoped flow view keeps real edge target')
     assert(!nodeText.includes('Profile Tab (prototype)'), 'node-scoped flow view hides resolved self-loop')
+
+    // Snapshot-path self-loop filtering (file_key forces snapshot path lookup)
+    const snapRes = await client.callTool('get_flows', { node_id: '1:1', file_key: 'FLOWKEY' })
+    const snapText = resultText(snapRes)
+    assert(snapText.includes('Nav Button'), 'snapshot flows: real prototype edge present')
+    assert(!snapText.includes('Self Button'), 'snapshot flows: prototype self-loop filtered')
+    assert(snapText.includes('connector: Profile Tab → Settings'), 'snapshot flows: real connector edge present')
+    assert(!snapText.includes('Profile Tab → Profile Tab'), 'snapshot flows: connector self-loop filtered')
   } catch (error) {
     console.error(error.stack || error.message)
     process.exitCode = 1

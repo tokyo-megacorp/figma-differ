@@ -531,6 +531,51 @@ try {
     assert(fmMatch !== null, 'YAML escaping: frontmatter block is well-formed')
   }
 
+  // ── Test: SECTION description uses frame.name when no heuristic matches ────
+  {
+    const FK = 'SECTION1'
+    const nodeId = '5:1'
+    // "Feature Overview" matches none of the regexes (auth/security/setting/profile/onboard)
+    const index = makeIndex(FK, [{ id: nodeId, name: 'Feature Overview', type: 'SECTION', page: 'Flows' }])
+    writeIndex(FK, index)
+
+    const doc = makeDocument(nodeId, 'Feature Overview', {
+      type: 'SECTION',
+      children: [makeTextNode('5:2', 'All features listed here')]
+    })
+    writeSnapshot(FK, nodeId, '20260418T120000Z', makeNodeJson(nodeId, doc))
+
+    const result = runScript(FK, nodeId)
+    assert(result.exitCode === 0, 'SECTION description: exits 0')
+
+    const md = readFrameMd(FK, nodeId)
+    assert(md !== null, 'SECTION description: frame.md created')
+    assert(md.includes('Feature Overview'), 'SECTION description: uses frame.name as fallback')
+    assert(!md.match(/^> (light|dark) mode screen$/m), 'SECTION description: no bare generic screen fallback')
+  }
+
+  // ── Test: SECTION with matching name still uses heuristic label ───────────
+  {
+    const FK = 'SECTION2'
+    const nodeId = '6:1'
+    // "Login Section" matches /login/i → heuristic should win over frame.name
+    const index = makeIndex(FK, [{ id: nodeId, name: 'Login Section', type: 'SECTION', page: 'Auth' }])
+    writeIndex(FK, index)
+
+    const doc = makeDocument(nodeId, 'Login Section', {
+      type: 'SECTION',
+      children: [makeTextNode('6:2', 'Enter your password')]
+    })
+    writeSnapshot(FK, nodeId, '20260418T120000Z', makeNodeJson(nodeId, doc))
+
+    const result = runScript(FK, nodeId)
+    assert(result.exitCode === 0, 'SECTION heuristic match: exits 0')
+
+    const md = readFrameMd(FK, nodeId)
+    assert(md !== null, 'SECTION heuristic match: frame.md created')
+    assert(md.includes('authentication screen'), 'SECTION heuristic match: regex heuristic wins over frame.name')
+  }
+
 } finally {
   teardown()
 }
