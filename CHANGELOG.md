@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.3.0] — 2026-04-20 — Interaction, Flow & State Enrichment
+
+### Added
+- `simplify-node.mjs --subtree <id>` flag — extract a child subtree from a full JSON without re-fetching from the API
+- `simplify-node.mjs` now preserves prototype `interactions`, legacy `transitionNodeID`, CONNECTOR fields, and component variant definitions/properties
+- `generate-frame-md.js` generates three new searchable sections: **Prototype Flows**, **Connectors**, **Component States** — resolved against `flows.json` when available
+- `extract-flows.js` single-node mode (`--node <id> --output <path>`) — extracts interactions and connector edges from a simplified node JSON without a full file tree
+- `save` MCP tool: `save_children` and `child_types` params — saves direct children from already-fetched JSON in a single call (no extra API requests)
+- Every `save` call now automatically extracts `flows.json` into the snapshot directory (best-effort, non-blocking)
+- `get_flows` MCP tool checks snapshot-level `flows.json` first, enabling offline flow queries and diffable interaction history
+
+### Changed
+- `/figma-differ:track --depth 1` renamed to `--children[=N]`; depth=2 supported via re-invoke pattern
+- `persistNode()` extracted from the `save` handler for reuse
+- Uncle Bob: renamed single-letter `p` vars to intent-revealing names; extracted `MIN_DESCRIPTION_LENGTH` constant
+
 ## [0.2.6] — 2026-04-20 — Fix Misleading Enrichment Hint on Snapshotted Frames
 
 ### Fixed
