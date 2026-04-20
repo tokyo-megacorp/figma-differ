@@ -191,106 +191,160 @@ function qmdSearch(query, limit = 10) {
 
 const server = new McpServer({
   name: 'figma-differ',
-  version: '0.2.5',
+  version: '0.4.1',
   instructions: `figma-differ is a local Figma design database with semantic search, change tracking, and flow detection.
 
-## When to use figma-differ vs Figma MCP
+## Mode Auto-Detection
 
-| Task | Primary | Fallback |
-|------|---------|---------|
-| Fetch LIVE state of a design | Figma MCP: get_design_context | REST API (see below) |
-| SEARCH across all indexed frames | figma-differ: search | — |
-| Check FLOWS between screens | figma-differ: get_flows | — |
-| Get cached frame details (no API call) | figma-differ: get_frame | — |
-| Save a fetched design locally | figma-differ: save | — |
-| Read design tokens / variables | Figma MCP: get_variable_defs | — |
-| Browse all frames in a file | figma-differ: list_frames | — |
+Call figma-differ check_auth at session start to see what's available. Apply this priority for every Figma operation:
 
-## Figma MCP Fallback — REST API
+**Mode 1 — LOCAL CACHE (always free, zero cost)**
+figma-differ search / get_frame / get_flows
+→ Use when the frame is already indexed. No network call needed.
+→ Skip to Mode 2 only when local result is missing or user asks for fresh data.
 
-When Figma MCP is unavailable or returns an error, fall back to the REST API:
+**Mode 2 — FIGMA MCP (richest data, rate-limited)**
+get_design_context / get_metadata / get_variable_defs / get_screenshot
+→ Use when fresh data is needed AND Figma MCP tools respond without error.
+→ Limitation: ~6 calls/month on Starter; does NOT provide prototype interactions.
+→ After each call: ALWAYS call figma-differ save to cache the result.
+
+**Mode 3 — REST API (structural, unlimited)**
+bash ${SCRIPTS_DIR}/figma-api.sh ...
+→ Use when Figma MCP is unavailable or errors, OR when prototype interactions are needed.
+→ Requires FIGMA_TOKEN (check via check_auth).
+→ After each call: ALWAYS call figma-differ save to cache the result.
+
+**Mode 4 — OFFLINE ONLY**
+figma-differ get_frame / search from cached data
+→ Use when no REST token AND Figma MCP unavailable.
+→ Inform the user that data may be stale.
+
+## Per-operation priority
+
+| Operation | Mode 2 (Figma MCP) | Mode 3 (REST fallback) | Mode 1 (offline) |
+|---|---|---|---|
+| Get frame design | get_design_context | fetch_node_json \| simplify-node.mjs | get_frame |
+| List children | get_metadata (sparse XML) | fetch_node_json .children[] | list_frames |
+| Prototype interactions | — (unsupported) | fetch_prototype_data | get_flows |
+| Design tokens | get_variable_defs | — | variables.json (cached) |
+| Screenshot / PNG | get_screenshot | fetch_node_png | — |
+| Search frames | — | — | search |
+
+## REST API commands
 
 \`\`\`
-# Fetch, simplify, and save node via REST API (structure only — no prototype interactions)
+# Fetch + simplify (structure only — no prototype interactions)
 bash ${SCRIPTS_DIR}/figma-api.sh fetch_node_json <file_key> <node_id> | node ${SCRIPTS_DIR}/simplify-node.mjs > /tmp/simplified.json
 
-# Fetch node WITH prototype interactions (uses full-file endpoint — may be slow for large files)
+# Fetch WITH prototype interactions (full-file endpoint, may be slow)
 bash ${SCRIPTS_DIR}/figma-api.sh fetch_prototype_data <file_key> <node_id> > /tmp/simplified.json
 
-# Fetch node PNG via REST API
+# Fetch PNG
 bash ${SCRIPTS_DIR}/figma-api.sh fetch_node_png <file_key> <node_id> <output_path>
 \`\`\`
 
-Then call figma-differ save with the simplified result:
+Then save:
 \`\`\`
 figma-differ save:
-  file_key      ← same file_key used above
-  node_id       ← same node_id used above
-  name          ← .name from /tmp/simplified.json  ← REQUIRED: use the real name, NEVER a URL slug or node-id placeholder
-  node_type     ← .type from /tmp/simplified.json
-  node_json_path ← "/tmp/simplified.json"  ← preferred for large nodes (avoids inline string size limits)
+  file_key       ← same file_key used above
+  node_id        ← same node_id used above
+  name           ← .name from simplified.json  ← NEVER a URL slug or node-id placeholder
+  node_type      ← .type from simplified.json
+  node_json_path ← "/tmp/simplified.json"  ← preferred for large nodes (>500KB)
   metadata:
-    description  ← one-line summary derived from the node name and type
-    components   ← collect all nodes where type is COMPONENT or INSTANCE (from simplified JSON)
-    text_content ← collect all .characters fields from TEXT nodes recursively (from simplified JSON)
+    description  ← one-line summary from name + type
+    components   ← COMPONENT/INSTANCE nodes from simplified JSON
+    text_content ← .characters from all TEXT nodes recursively
 \`\`\`
-
-The REST API path produces less semantic richness than Figma MCP (no React/Tailwind reference code, no AI description) but provides full node structure for diffing and search.
 
 ## Auto-save: Figma MCP → figma-differ
 
-IMPORTANT: After calling Figma MCP's get_design_context or get_metadata, ALWAYS call figma-differ save to cache the result locally. This makes the design searchable and diffable. If you also called get_variable_defs, pass the result as variables_json — it will be stored as variables.json and surfaced as a Design Tokens section in frame.md, making design tokens searchable.
+After get_design_context or get_metadata: ALWAYS call figma-differ save.
+After get_variable_defs: pass result as variables_json — stored as variables.json, surfaced as Design Tokens in frame.md.
 
-TIP — discovering children without heavy payloads: use get_metadata(fileKey, nodeId) to get a sparse XML tree of direct children (IDs + names only). Parse child node-ids from the XML, then fetch each child with get_design_context individually. This avoids downloading the full parent JSON (potentially 15MB+) just to enumerate children.
+TIP — children without heavy payloads: get_metadata(fileKey, nodeId) returns sparse XML (IDs + names only). Parse child node-ids, then fetch each with get_design_context individually — avoids downloading the full parent JSON (15MB+).
 
-CRITICAL — name field: ALWAYS extract the real node name from the response. NEVER use a URL slug, node-id string, or placeholder like "Node 1234-5678". If the name is unknown, call get_design_context or fetch_node_json first to discover it.
+CRITICAL — name field: ALWAYS extract the real node name. NEVER use a URL slug, node-id, or placeholder.
 
-### Field mapping from get_design_context response:
-
-The get_design_context response contains code (React+Tailwind reference), a screenshot, and metadata. Extract these fields for the save call:
+### Field mapping from get_design_context
 
 \`\`\`
 figma-differ save:
-  file_key    ← fileKey from the Figma URL
-  node_id     ← nodeId from the Figma URL (e.g., "1431:33250")
-  name        ← the node/frame name from the response or URL slug
-  page        ← page name if known (from get_metadata or context)
+  file_key    ← fileKey from URL
+  node_id     ← nodeId from URL (e.g., "1431:33250")
+  name        ← real node name from response
+  page        ← page name from get_metadata or context
   node_type   ← "FRAME", "COMPONENT", "SECTION", etc.
-  node_json   ← full JSON response body (stringified) if available
+  node_json   ← full JSON body (stringified) if <500KB; else use node_json_path
   metadata:
-    description  ← one-line summary of what the screen shows (write this yourself from the screenshot/code)
-    components   ← component names visible in the code (e.g., ["Button", "Input", "Modal"])
-    text_content ← visible text strings from the code (e.g., ["Sign In", "Email", "Password"])
+    description  ← one-line summary of what the screen shows
+    components   ← component names from the code (e.g., ["Button", "Input"])
+    text_content ← visible text strings (e.g., ["Sign In", "Email"])
 \`\`\`
 
-### Field mapping from get_metadata response:
+### Field mapping from get_metadata
 
-get_metadata returns XML with node structure. Extract:
 \`\`\`
-  name       ← from the root node's name attribute
-  node_type  ← from the root node's type attribute
-  page       ← from the parent CANVAS node name
+  name       ← root node's name attribute
+  node_type  ← root node's type attribute
+  page       ← parent CANVAS node name
 \`\`\`
-
-### Example flow:
-
-1. User says "implement this Figma screen" with a URL
-2. Parse fileKey and nodeId from URL
-3. Call Figma MCP get_design_context(fileKey, nodeId)
-4. From the response, extract component names and text content
-5. Call figma-differ save(file_key, node_id, name, metadata)
-6. The screen is now in the local database — searchable, diffable, trackable
-7. Proceed with implementation using the design context
 
 ## Typical patterns
 
-- "Find the settings screen" → figma-differ search
-- "What does this screen look like now?" → Figma MCP get_design_context → figma-differ save
+- "Find the settings screen" → figma-differ search (Mode 1)
+- "What does this screen look like?" → check_auth → get_design_context → figma-differ save
+- "Implement this screen" → Mode 1 check → Mode 2/3 fetch → save → implement
 - "What changed in the login flow?" → figma-differ get_flows + search
-- "Implement this Figma screen" → Figma MCP get_design_context → figma-differ save → implement
-- "Which screens use the Modal component?" → figma-differ search "Modal component"
-- "Save this design locally" → Figma MCP get_design_context → figma-differ save`,
+- "Which screens use Modal?" → figma-differ search "Modal component"`,
 })
+
+// Tool: check_auth
+server.tool(
+  'check_auth',
+  'Check which Figma data modes are available: REST API token status, local cache size, and QMD search availability. Call this at session start to know whether to use Figma MCP, REST API, or offline cache only.',
+  {},
+  async () => {
+    const restAvailable = (() => {
+      try {
+        execSync(`bash "${SCRIPTS_DIR}/auth.sh" status`, { encoding: 'utf8', stdio: 'pipe' })
+        return true
+      } catch { return false }
+    })()
+
+    const qmdAvailable = (() => {
+      try {
+        execSync('which qmd', { encoding: 'utf8', stdio: 'pipe' })
+        return true
+      } catch { return false }
+    })()
+
+    const cachedFrames = (() => {
+      try {
+        return findFileKeys().reduce((sum, key) => {
+          const idx = readIndex(key)
+          return sum + (idx?.frames?.length || 0)
+        }, 0)
+      } catch { return 0 }
+    })()
+
+    const lines = [
+      '## figma-differ Mode Status',
+      '',
+      `**REST API:** ${restAvailable ? `available (FIGMA_TOKEN set)` : `unavailable — run: bash ${SCRIPTS_DIR}/auth.sh set`}`,
+      `**Figma MCP:** unknown at server start — try get_design_context; if it errors, MCP plugin is not connected`,
+      `**Offline cache:** ${cachedFrames} frames indexed locally`,
+      `**QMD search:** ${qmdAvailable ? 'available' : 'unavailable — install: brew install qmd'}`,
+      '',
+      cachedFrames > 0
+        ? `Recommendation: check figma-differ search/get_frame first — ${cachedFrames} frames already cached.`
+        : 'No local cache yet. Fetch from Figma MCP or REST API, then save to build the index.',
+    ]
+
+    return { content: [{ type: 'text', text: lines.join('\n') }] }
+  }
+)
 
 // Tool: search
 server.tool(
