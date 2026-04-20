@@ -173,69 +173,55 @@ function collectAllNodes(node, acc) {
   return acc
 }
 
+// ── Single-node extraction ───────────────────────────────────────────────────
+
+function extractFlowsFromSingleNode(data, singleNodeId, outputPath, fileKey) {
+  const allNodes = collectAllNodes(data)
+  const interactions = []
+
+  for (const n of allNodes) {
+    if (Array.isArray(n.interactions)) {
+      for (const interaction of n.interactions) {
+        const triggerType = interaction.trigger?.type || 'UNKNOWN'
+        for (const action of (interaction.actions || [])) {
+          if (action.destinationId) {
+            interactions.push({ type: 'prototype', trigger: triggerType, triggerNode: { id: n.id, name: n.name }, destinationId: action.destinationId })
+          }
+        }
+      }
+    }
+    if (n.transitionNodeID) {
+      interactions.push({ type: 'prototype', trigger: 'ON_CLICK', triggerNode: { id: n.id, name: n.name }, destinationId: n.transitionNodeID })
+    }
+    if (n.type === 'CONNECTOR' && n.connectorStart?.endpointNodeId && n.connectorEnd?.endpointNodeId) {
+      interactions.push({ type: 'connector', from: n.connectorStart.endpointNodeId, to: n.connectorEnd.endpointNodeId })
+    }
+  }
+
+  const output = {
+    nodeId: singleNodeId || data.id,
+    extractedAt: new Date().toISOString(),
+    totalInteractions: interactions.length,
+    prototypeFlows: interactions.filter(i => i.type === 'prototype').length,
+    connectors: interactions.filter(i => i.type === 'connector').length,
+    interactions,
+  }
+
+  const dest = outputPath || path.join(process.env.HOME, '.figma-differ', fileKey || 'unknown', 'node-flows.json')
+  fs.mkdirSync(path.dirname(dest), { recursive: true })
+  fs.writeFileSync(dest, JSON.stringify(output, null, 2))
+  console.log(`Extracted ${interactions.length} interactions from node ${output.nodeId}`)
+  console.log(`Saved to: ${dest}`)
+}
+
 // ── Main ────────────────────────────────────────────────────────────────────
 
 function main() {
   const raw = fs.readFileSync(treePath || positionalArgs[0], 'utf8')
   const data = JSON.parse(raw)
 
-  const isSingleNode = !data.document && data.id != null
-
-  if (isSingleNode) {
-    // Single-node mode: extract interactions + connectors from simplified node JSON
-    const allNodes = collectAllNodes(data)
-    const interactions = []
-
-    for (const n of allNodes) {
-      // Modern interactions
-      if (Array.isArray(n.interactions)) {
-        for (const interaction of n.interactions) {
-          const triggerType = interaction.trigger?.type || 'UNKNOWN'
-          for (const action of (interaction.actions || [])) {
-            if (action.destinationId) {
-              interactions.push({
-                type: 'prototype',
-                trigger: triggerType,
-                triggerNode: { id: n.id, name: n.name },
-                destinationId: action.destinationId,
-              })
-            }
-          }
-        }
-      }
-      // Legacy transition
-      if (n.transitionNodeID) {
-        interactions.push({
-          type: 'prototype',
-          trigger: 'ON_CLICK',
-          triggerNode: { id: n.id, name: n.name },
-          destinationId: n.transitionNodeID,
-        })
-      }
-      // CONNECTOR nodes
-      if (n.type === 'CONNECTOR' && n.connectorStart?.endpointNodeId && n.connectorEnd?.endpointNodeId) {
-        interactions.push({
-          type: 'connector',
-          from: n.connectorStart.endpointNodeId,
-          to: n.connectorEnd.endpointNodeId,
-        })
-      }
-    }
-
-    const output = {
-      nodeId: singleNodeId || data.id,
-      extractedAt: new Date().toISOString(),
-      totalInteractions: interactions.length,
-      prototypeFlows: interactions.filter(i => i.type === 'prototype').length,
-      connectors: interactions.filter(i => i.type === 'connector').length,
-      interactions,
-    }
-
-    const dest = outputPath || path.join(process.env.HOME, '.figma-differ', fileKey || 'unknown', 'node-flows.json')
-    fs.mkdirSync(path.dirname(dest), { recursive: true })
-    fs.writeFileSync(dest, JSON.stringify(output, null, 2))
-    console.log(`Extracted ${interactions.length} interactions from node ${output.nodeId}`)
-    console.log(`Saved to: ${dest}`)
+  if (!data.document && data.id != null) {
+    extractFlowsFromSingleNode(data, singleNodeId, outputPath, fileKey)
     return
   }
 
