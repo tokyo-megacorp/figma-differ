@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.2] — 2026-04-20 — Figma MCP Fallback to REST API
+
+### Added
+- Explicit MCP → REST API fallback instructions in the MCP server for all data-fetch scenarios
+- `get_frame` thin-content hint now includes REST API fallback steps (`figma-api.sh fetch_node_json`)
+- "Frame not found" response now guides agent through MCP-first + REST fallback fetch flow
+- New "Figma MCP Fallback" section in server instructions with field mapping for REST API responses
+
 ## [0.2.1] — 2026-04-20 — Marketplace Schema Fix
 
 ### Fixed

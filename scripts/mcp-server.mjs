@@ -130,20 +130,48 @@ function qmdSearch(query, limit = 10) {
 
 const server = new McpServer({
   name: 'figma-differ',
-  version: '0.2.0',
+  version: '0.2.2',
   instructions: `figma-differ is a local Figma design database with semantic search, change tracking, and flow detection.
 
 ## When to use figma-differ vs Figma MCP
 
-| Task | Tool |
-|------|------|
-| Fetch LIVE state of a design | Figma MCP: get_design_context |
-| SEARCH across all indexed frames | figma-differ: search |
-| Check FLOWS between screens | figma-differ: get_flows |
-| Get cached frame details (no API call) | figma-differ: get_frame |
-| Save a fetched design locally | figma-differ: save |
-| Read design tokens / variables | Figma MCP: get_variable_defs |
-| Browse all frames in a file | figma-differ: list_frames |
+| Task | Primary | Fallback |
+|------|---------|---------|
+| Fetch LIVE state of a design | Figma MCP: get_design_context | REST API (see below) |
+| SEARCH across all indexed frames | figma-differ: search | — |
+| Check FLOWS between screens | figma-differ: get_flows | — |
+| Get cached frame details (no API call) | figma-differ: get_frame | — |
+| Save a fetched design locally | figma-differ: save | — |
+| Read design tokens / variables | Figma MCP: get_variable_defs | — |
+| Browse all frames in a file | figma-differ: list_frames | — |
+
+## Figma MCP Fallback — REST API
+
+When Figma MCP is unavailable or returns an error, fall back to the REST API:
+
+\`\`\`
+# Fetch node JSON via REST API
+bash scripts/figma-api.sh fetch_node_json <file_key> <node_id>
+
+# Fetch node PNG via REST API
+bash scripts/figma-api.sh fetch_node_png <file_key> <node_id> <output_path>
+\`\`\`
+
+Then call figma-differ save with the result:
+\`\`\`
+figma-differ save:
+  file_key  ← same file_key used above
+  node_id   ← same node_id used above
+  name      ← document.nodes[node_id].document.name from REST response
+  node_type ← document.nodes[node_id].document.type from REST response
+  node_json ← full JSON response (stringified)
+  metadata:
+    description  ← one-line summary derived from the node name and type
+    components   ← extract from children where type is COMPONENT or INSTANCE
+    text_content ← extract all characters fields from TEXT nodes recursively
+\`\`\`
+
+The REST API path produces less semantic richness than Figma MCP (no React/Tailwind reference code, no AI description) but provides full node structure for diffing and search.
 
 ## Auto-save: Figma MCP → figma-differ
 
@@ -249,7 +277,9 @@ server.tool(
         const isThin = nodeCount <= 1 || desc.length < 30 || desc === 'screen' || /^(light|dark) mode screen$/.test(desc)
 
         if (isThin) {
-          const hint = `\n\n---\nThis frame has shallow data (${nodeCount} node${nodeCount !== 1 ? 's' : ''}). For richer content:\n1. Call Figma MCP get_design_context(fileKey: "${fm.figma_file || ''}", nodeId: "${fm.figma_node || ''}")\n2. Call figma-differ save with extracted components and text content\nThis will enrich the frame for future searches.`
+          const fk = fm.figma_file || ''
+          const nid = fm.figma_node || ''
+          const hint = `\n\n---\nThis frame has shallow data (${nodeCount} node${nodeCount !== 1 ? 's' : ''}). Enrich it:\n\n**Primary (Figma MCP):**\n1. Call Figma MCP get_design_context(fileKey: "${fk}", nodeId: "${nid}")\n2. Call figma-differ save with extracted components and text content\n\n**Fallback (if Figma MCP unavailable or errors):**\n1. Run: \`bash scripts/figma-api.sh fetch_node_json ${fk} ${nid}\`\n2. Extract name, node_type, components (INSTANCE/COMPONENT nodes), text_content (TEXT nodes)\n3. Call figma-differ save with node_json and extracted metadata`
           return { content: [{ type: 'text', text: text + hint }] }
         }
 
@@ -262,7 +292,8 @@ server.tool(
       }
     }
 
-    return { content: [{ type: 'text', text: `Frame ${node_id} not found.` }] }
+    const notFoundMsg = `Frame ${node_id} not found in local cache.\n\n**To fetch it:**\n\n**Primary (Figma MCP):**\n1. Call Figma MCP get_design_context(fileKey: "<file_key>", nodeId: "${node_id}")\n2. Call figma-differ save with the result\n\n**Fallback (if Figma MCP unavailable):**\n1. Run: \`bash scripts/figma-api.sh fetch_node_json <file_key> ${node_id}\`\n2. Call figma-differ save with node_json and extracted metadata`
+    return { content: [{ type: 'text', text: notFoundMsg }] }
   }
 )
 
