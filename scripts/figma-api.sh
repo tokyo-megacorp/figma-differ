@@ -189,7 +189,7 @@ fetch_prototype_data() {
   _check_deps
   _check_token
   echo "Fetching full file for prototype interactions (node: ${node_id})..." >&2
-  _figma_get "/files/${file_key}?depth=50" | node "${_FIGMA_API_SCRIPT_DIR}/simplify-node.mjs" --subtree "${node_id}"
+  _figma_get "/files/${file_key}?depth=4" | node "${_FIGMA_API_SCRIPT_DIR}/simplify-node.mjs" --subtree "${node_id}"
 }
 
 _fetch_image_chunk() {
