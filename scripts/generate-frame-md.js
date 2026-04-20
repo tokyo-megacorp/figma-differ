@@ -245,6 +245,8 @@ function synthesizeDescription({ frame, document, colors, buttons, formFields, l
     parts.push('profile screen')
   else if (/onboard|welcome|intro/i.test(page))
     parts.push('onboarding screen')
+  else if (semanticSignals.isSectionLike && frame.name)
+    parts.push(frame.name)
   else
     parts.push('screen')
 

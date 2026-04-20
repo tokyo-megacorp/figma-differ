@@ -462,7 +462,15 @@ server.tool(
                 if (ep && typeof ep === 'object') return ep.name || idToName[ep.id] || ep.id
                 return resolveName(ep)
               }
-              const lines = snapshotFlows.interactions.map(i => i.type === 'connector'
+              const interactions = (snapshotFlows.interactions || []).filter(i => {
+                if (i.type === 'connector') {
+                  const fId = typeof i.from === 'object' ? i.from?.id : i.from
+                  const tId = typeof i.to === 'object' ? i.to?.id : i.to
+                  return fId && tId && fId !== tId
+                }
+                return !(i.triggerNode?.id && i.destinationId && i.triggerNode.id === i.destinationId)
+              })
+              const lines = interactions.map(i => i.type === 'connector'
                 ? `connector: ${resolveEndpoint(i.from)} → ${resolveEndpoint(i.to)}`
                 : `[${i.trigger}] ${i.triggerNode?.name || resolveName(i.triggerNode?.id)} → ${resolveName(i.destinationId)}`)
               const rawIdPattern = /^\d+:\d+$/

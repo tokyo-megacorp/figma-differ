@@ -71,11 +71,14 @@ After saving `node.json`, inspect the node type:
 NODE_TYPE=$(jq -r '.nodes["<nodeId>"].document.type // .document.type // empty' "$SNAP_DIR/node.json")
 ```
 
-If `NODE_TYPE` is `CANVAS`, warn the user:
+If `NODE_TYPE` is `CANVAS`, **stop immediately** — do NOT save the node.json, do NOT continue to PNG export. Remove the snapshot directory created in step 3. Then:
 
-```text
-This snapshot targets a full page (CANVAS). PNG export will be skipped and search quality is usually better if you index child frames individually via /figma-differ:index first.
-```
+1. Tell the user:
+   ```
+   CANVAS node detected — saving a full Figma page produces 180MB+ snapshots with poor search quality. Redirecting to index instead.
+   ```
+2. Invoke `/figma-differ:index <figma-url>` to catalog child frames individually.
+3. Report the result of the index step. Do not proceed to steps 5–7.
 
 ### 5. Fetch PNG screenshot
 
