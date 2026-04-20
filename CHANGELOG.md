@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.1] — 2026-04-20 — Fix flows.json, Frame.md & Prototype Fetch
+
+### Fixed
+- `extract-flows.js`: normalize Figma `/nodes` API response (`{nodes:{id:{document}}}`) before `isSingleNode` detection — fixes silent fallthrough that left `flows.json` empty after save
+- `mcp-server.mjs` `persistNode()`: run `generate-frame-md.js` post-save (best-effort) so `frame.md` surfaces connectors, component states, and prototype interactions from `node.json`
+- `figma-api.sh`: add `fetch_prototype_data <fileKey> <nodeId>` command using `GET /files/:key` piped through `simplify-node.mjs --subtree` — only endpoint that returns prototype `interactions`
+- MCP server instructions: document `fetch_prototype_data` alongside `fetch_node_json` in REST API fallback section
+
 ## [0.3.0] — 2026-04-20 — Interaction, Flow & State Enrichment
 
 ### Added
