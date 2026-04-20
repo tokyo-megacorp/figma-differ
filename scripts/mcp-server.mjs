@@ -25,6 +25,41 @@ import { execSync as execSyncRaw } from 'child_process'
 
 const BASE_DIR = join(homedir(), '.figma-differ')
 
+// ── Frame guidance helpers ────────────────────────────────────────────────────
+
+function generateFrameEnrichmentHint(fileKey, nodeId, nodeCount, scriptsDir) {
+  const plural = nodeCount !== 1 ? 's' : ''
+  return [
+    `\n\n---`,
+    `This frame has shallow data (${nodeCount} node${plural}). Enrich it:`,
+    ``,
+    `**Primary (Figma MCP):**`,
+    `1. Call Figma MCP get_design_context(fileKey: "${fileKey}", nodeId: "${nodeId}")`,
+    `2. Call figma-differ save with extracted components and text content`,
+    ``,
+    `**Fallback (if Figma MCP unavailable or errors):**`,
+    `1. Run: \`bash ${scriptsDir}/figma-api.sh fetch_node_json ${fileKey} ${nodeId} | node ${scriptsDir}/simplify-node.mjs > /tmp/simplified.json\``,
+    `2. Extract name, node_type, components (INSTANCE/COMPONENT nodes), text_content (TEXT nodes) from simplified JSON`,
+    `3. Call figma-differ save with node_json ← contents of /tmp/simplified.json and extracted metadata`,
+  ].join('\n')
+}
+
+function generateFrameNotFoundGuide(nodeId, scriptsDir) {
+  return [
+    `Frame ${nodeId} not found in local cache.`,
+    ``,
+    `**To fetch it:**`,
+    ``,
+    `**Primary (Figma MCP):**`,
+    `1. Call Figma MCP get_design_context(fileKey: "<file_key>", nodeId: "${nodeId}")`,
+    `2. Call figma-differ save with the result`,
+    ``,
+    `**Fallback (if Figma MCP unavailable):**`,
+    `1. Run: \`bash ${scriptsDir}/figma-api.sh fetch_node_json <file_key> ${nodeId} | node ${scriptsDir}/simplify-node.mjs > /tmp/simplified.json\``,
+    `2. Call figma-differ save with node_json ← contents of /tmp/simplified.json and extracted metadata (name, node_type, components, text_content)`,
+  ].join('\n')
+}
+
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function findFileKeys() {
@@ -282,8 +317,8 @@ server.tool(
         if (isThin) {
           const fileKey = fm.figma_file || ''
           const nodeId = fm.figma_node || ''
-          const hint = `\n\n---\nThis frame has shallow data (${nodeCount} node${nodeCount !== 1 ? 's' : ''}). Enrich it:\n\n**Primary (Figma MCP):**\n1. Call Figma MCP get_design_context(fileKey: "${fileKey}", nodeId: "${nodeId}")\n2. Call figma-differ save with extracted components and text content\n\n**Fallback (if Figma MCP unavailable or errors):**\n1. Run: \`bash ${SCRIPTS_DIR}/figma-api.sh fetch_node_json ${fileKey} ${nodeId} | node ${SCRIPTS_DIR}/simplify-node.mjs > /tmp/simplified.json\`\n2. Extract name, node_type, components (INSTANCE/COMPONENT nodes), text_content (TEXT nodes) from simplified JSON\n3. Call figma-differ save with node_json ← contents of /tmp/simplified.json and extracted metadata`
-          return { content: [{ type: 'text', text: text + hint }] }
+          const enrichmentHint = generateFrameEnrichmentHint(fileKey, nodeId, nodeCount, SCRIPTS_DIR)
+          return { content: [{ type: 'text', text: text + enrichmentHint }] }
         }
 
         return {
@@ -295,8 +330,7 @@ server.tool(
       }
     }
 
-    const notFoundMsg = `Frame ${node_id} not found in local cache.\n\n**To fetch it:**\n\n**Primary (Figma MCP):**\n1. Call Figma MCP get_design_context(fileKey: "<file_key>", nodeId: "${node_id}")\n2. Call figma-differ save with the result\n\n**Fallback (if Figma MCP unavailable):**\n1. Run: \`bash ${SCRIPTS_DIR}/figma-api.sh fetch_node_json <file_key> ${node_id} | node ${SCRIPTS_DIR}/simplify-node.mjs > /tmp/simplified.json\`\n2. Call figma-differ save with node_json ← contents of /tmp/simplified.json and extracted metadata (name, node_type, components, text_content)`
-    return { content: [{ type: 'text', text: notFoundMsg }] }
+    return { content: [{ type: 'text', text: generateFrameNotFoundGuide(node_id, SCRIPTS_DIR) }] }
   }
 )
 
