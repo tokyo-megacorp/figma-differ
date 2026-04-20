@@ -457,9 +457,13 @@ server.tool(
                 }
               }
               const resolveName = id => idToName[id] || id
+              const resolveEndpoint = ep => {
+                if (ep && typeof ep === 'object') return ep.name || idToName[ep.id] || ep.id
+                return resolveName(ep)
+              }
               const formatted = snapshotFlows.interactions
                 .map(i => i.type === 'connector'
-                  ? `connector: ${resolveName(i.from)} → ${resolveName(i.to)}`
+                  ? `connector: ${resolveEndpoint(i.from)} → ${resolveEndpoint(i.to)}`
                   : `[${i.trigger}] ${i.triggerNode?.name || resolveName(i.triggerNode?.id)} → ${resolveName(i.destinationId)}`)
                 .join('\n')
               return { content: [{ type: 'text', text: `Flows for ${node_id} (from snapshot ${snapDir}):\n\n${formatted}` }] }

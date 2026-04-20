@@ -222,11 +222,25 @@ function writeNodeFlows(output, { outputPath, fileKey }) {
 }
 
 function extractFlowsFromSingleNode(data, { singleNodeId, outputPath, fileKey }) {
-  const interactions = collectAllNodes(data).flatMap(n => [
+  const allNodes = collectAllNodes(data)
+  const nameMap = {}
+  for (const n of allNodes) {
+    if (n.id) nameMap[n.id] = { name: n.name || n.id, type: n.type || 'UNKNOWN' }
+  }
+  const interactions = allNodes.flatMap(n => [
     ...extractPrototypeInteractions(n),
     ...extractLegacyTransition(n),
     ...extractConnectorFlow(n),
-  ])
+  ]).map(interaction => {
+    if (interaction.type !== 'connector') return interaction
+    const fromId = typeof interaction.from === 'string' ? interaction.from : interaction.from?.id
+    const toId = typeof interaction.to === 'string' ? interaction.to : interaction.to?.id
+    return {
+      ...interaction,
+      from: fromId ? { id: fromId, ...(nameMap[fromId] || { name: fromId, type: 'UNKNOWN' }) } : interaction.from,
+      to: toId ? { id: toId, ...(nameMap[toId] || { name: toId, type: 'UNKNOWN' }) } : interaction.to,
+    }
+  })
   writeNodeFlows(buildSingleNodeOutput(data, interactions, singleNodeId), { outputPath, fileKey })
 }
 
