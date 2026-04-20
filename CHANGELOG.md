@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.4] — 2026-04-20 — Fix Absolute Script Paths in Fallback Instructions
+
+### Fixed
+- Fallback instructions in MCP server now use absolute paths (`${SCRIPTS_DIR}/figma-api.sh`, `${SCRIPTS_DIR}/simplify-node.mjs`) resolved at runtime via `import.meta.url` — prevents "No such file or directory" when the agent runs the fallback from a different project's CWD
+
 ## [0.2.3] — 2026-04-20 — REST API Node Simplifier
 
 ### Added
