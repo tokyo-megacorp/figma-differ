@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.2] — 2026-04-20 — Fix fetch_prototype_data Depth Parameter
+
+### Fixed
+- `figma-api.sh` `fetch_prototype_data`: add `?depth=50` to `/files/:key` request — omitting depth caused Figma to return 400 on large files; depth=50 covers any realistic design nesting while avoiding size limits
+
 ## [0.3.1] — 2026-04-20 — Fix flows.json, Frame.md & Prototype Fetch
 
 ### Fixed
