@@ -11,6 +11,9 @@
  *
  *   # With explicit node_id to extract from multi-node response:
  *   node scripts/simplify-node.mjs --node-id 1431:33250 path/to/response.json
+ *
+ *   # Extract subtree rooted at a specific node:
+ *   node scripts/simplify-node.mjs --subtree 43810:194637 path/to/full.json
  */
 
 import { readFileSync } from 'fs'
@@ -21,11 +24,15 @@ import { readFileSync } from 'fs'
 
 const args = process.argv.slice(2)
 let nodeId = null
+let subtreeId = null
 let filePath = null
 
 for (let i = 0; i < args.length; i++) {
   if (args[i] === '--node-id' && args[i + 1]) {
     nodeId = args[i + 1]
+    i++
+  } else if (args[i] === '--subtree' && args[i + 1]) {
+    subtreeId = args[i + 1].replace(/_/g, ':')
     i++
   } else {
     filePath = args[i]
@@ -79,10 +86,35 @@ if (response.nodes) {
 }
 
 // ---------------------------------------------------------------------------
+// Subtree extraction
+// ---------------------------------------------------------------------------
+
+if (subtreeId) {
+  const found = findById(document, subtreeId)
+  if (!found) {
+    process.stderr.write(`Subtree node ${subtreeId} not found in document\n`)
+    process.exit(1)
+  }
+  document = found
+}
+
+// ---------------------------------------------------------------------------
 // Simplify — strip noise, keep layout/semantic essentials
 // ---------------------------------------------------------------------------
 
 const STRIP_BLEND = new Set(['PASS_THROUGH', 'NORMAL'])
+
+function findById(node, id) {
+  if (!node || typeof node !== 'object') return null
+  if (node.id === id) return node
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) {
+      const found = findById(child, id)
+      if (found) return found
+    }
+  }
+  return null
+}
 
 /**
  * Simplify a single Figma node (and its children recursively).
@@ -130,6 +162,49 @@ function simplify(node) {
   // Non-default blend mode (kept if meaningful)
   if (node.blendMode && !STRIP_BLEND.has(node.blendMode)) {
     out.blendMode = node.blendMode
+  }
+
+  // Prototype interactions (modern format)
+  if (Array.isArray(node.interactions) && node.interactions.length > 0) {
+    const compacted = node.interactions
+      .map(i => ({
+        trigger: i.trigger ? { type: i.trigger.type } : undefined,
+        actions: (i.actions || [])
+          .filter(a => a.destinationId)
+          .map(a => ({ type: a.type, destinationId: a.destinationId, navigation: a.navigation })),
+      }))
+      .filter(i => i.actions && i.actions.length > 0)
+    if (compacted.length > 0) out.interactions = compacted
+  }
+
+  // Legacy prototype transition
+  if (node.transitionNodeID != null) out.transitionNodeID = node.transitionNodeID
+
+  // CONNECTOR node fields
+  if (node.type === 'CONNECTOR') {
+    if (node.connectorStart?.endpointNodeId) out.connectorStart = { endpointNodeId: node.connectorStart.endpointNodeId }
+    if (node.connectorEnd?.endpointNodeId) out.connectorEnd = { endpointNodeId: node.connectorEnd.endpointNodeId }
+    if (node.connectorLineType) out.connectorLineType = node.connectorLineType
+  }
+
+  // Component variant definitions (on COMPONENT_SET nodes)
+  if (node.componentPropertyDefinitions) {
+    const variantDefs = {}
+    for (const [key, def] of Object.entries(node.componentPropertyDefinitions)) {
+      if (def.type === 'VARIANT') {
+        variantDefs[key] = { type: 'VARIANT', variantOptions: def.variantOptions || [] }
+      }
+    }
+    if (Object.keys(variantDefs).length > 0) out.componentPropertyDefinitions = variantDefs
+  }
+
+  // Component current state (on INSTANCE nodes)
+  if (node.componentProperties) {
+    const variantProps = {}
+    for (const [key, prop] of Object.entries(node.componentProperties)) {
+      if (prop.type === 'VARIANT') variantProps[key] = { type: 'VARIANT', value: prop.value }
+    }
+    if (Object.keys(variantProps).length > 0) out.componentProperties = variantProps
   }
 
   // Recurse into children

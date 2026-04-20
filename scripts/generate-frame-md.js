@@ -340,6 +340,56 @@ function getCachedFlows() {
   return _flowsCache
 }
 
+function resolveNodeName(nodeId, flowsData) {
+  if (!flowsData) return nodeId
+  for (const f of (flowsData.flows || [])) {
+    if (f.from && f.from.id === nodeId) return f.from.name
+    if (f.to && f.to.id === nodeId) return f.to.name
+  }
+  return nodeId
+}
+
+function extractInteractions(nodes) {
+  const flows = []
+  for (const n of nodes) {
+    // Modern format
+    if (Array.isArray(n.interactions)) {
+      for (const interaction of n.interactions) {
+        const triggerType = interaction.trigger?.type || 'UNKNOWN'
+        for (const action of (interaction.actions || [])) {
+          if (action.destinationId) {
+            flows.push({ triggerName: n.name, trigger: triggerType, destinationId: action.destinationId })
+          }
+        }
+      }
+    }
+    // Legacy format
+    if (n.transitionNodeID) {
+      flows.push({ triggerName: n.name, trigger: 'ON_CLICK', destinationId: n.transitionNodeID })
+    }
+  }
+  return flows
+}
+
+function extractConnectorEdges(nodes) {
+  return nodes
+    .filter(n => n.type === 'CONNECTOR' && n.connectorStart?.endpointNodeId && n.connectorEnd?.endpointNodeId)
+    .map(n => ({ from: n.connectorStart.endpointNodeId, to: n.connectorEnd.endpointNodeId }))
+}
+
+function extractComponentStates(nodes) {
+  const states = []
+  for (const n of nodes) {
+    if (n.componentPropertyDefinitions) {
+      const variants = Object.entries(n.componentPropertyDefinitions)
+        .filter(([, def]) => def.type === 'VARIANT' && def.variantOptions?.length)
+        .map(([prop, def]) => `${prop}: ${def.variantOptions.join(' | ')}`)
+      if (variants.length > 0) states.push({ name: n.name, variants })
+    }
+  }
+  return states
+}
+
 // ── Markdown generation ─────────────────────────────────────────────────────
 
 function generateFrameMd(document, frame, index, timestamp) {
@@ -365,6 +415,10 @@ function generateFrameMd(document, frame, index, timestamp) {
 
   // Enrich description with flow context
   const frameFlows = getFrameFlows(frame.id, getCachedFlows())
+  const interactions = extractInteractions(nodes)
+  const connectorEdges = extractConnectorEdges(nodes)
+  const componentStates = extractComponentStates(nodes)
+  const flowsData = getCachedFlows()
   if (frameFlows.outgoing.length > 0) {
     const targets = [...new Set(frameFlows.outgoing.map(f => f.to.name))].slice(0, 3)
     description += `; leads to: ${targets.join(', ')}`
@@ -410,6 +464,38 @@ function generateFrameMd(document, frame, index, timestamp) {
   if (colors.mode) tags.push(`${colors.mode} mode`)
   lines.push(`Page: ${tags.join(' | ')}`)
   lines.push('')
+
+  // Prototype Flows section (from node interactions)
+  if (interactions.length > 0) {
+    lines.push('## Prototype Flows')
+    for (const i of interactions.slice(0, 20)) {
+      const destName = resolveNodeName(i.destinationId, flowsData)
+      lines.push(`- ${i.triggerName} [${i.trigger}] → ${destName}`)
+    }
+    if (interactions.length > 20) lines.push(`- _...and ${interactions.length - 20} more_`)
+    lines.push('')
+  }
+
+  // Connectors section
+  if (connectorEdges.length > 0) {
+    lines.push(`## Connectors (${connectorEdges.length})`)
+    for (const c of connectorEdges.slice(0, 10)) {
+      const fromName = resolveNodeName(c.from, flowsData)
+      const toName = resolveNodeName(c.to, flowsData)
+      lines.push(`- ${fromName} → ${toName}`)
+    }
+    if (connectorEdges.length > 10) lines.push(`- _...and ${connectorEdges.length - 10} more_`)
+    lines.push('')
+  }
+
+  // Component States section
+  if (componentStates.length > 0) {
+    lines.push('## Component States')
+    for (const s of componentStates.slice(0, 20)) {
+      lines.push(`- ${s.name}: ${s.variants.join(', ')}`)
+    }
+    lines.push('')
+  }
 
   // Flows section (from flows.json) — reuse frameFlows from above
   if (frameFlows.incoming.length > 0 || frameFlows.outgoing.length > 0) {

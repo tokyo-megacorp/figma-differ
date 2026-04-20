@@ -24,6 +24,8 @@ const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url))
 
 const BASE_DIR = join(homedir(), '.figma-differ')
 
+const MIN_DESCRIPTION_LENGTH = 30
+
 // ── Global error guards — keep the server alive on unhandled throws ──────────
 
 process.on('uncaughtException', (err) => {
@@ -74,28 +76,28 @@ function findFileKeys() {
   if (!existsSync(BASE_DIR)) return []
   return readdirSync(BASE_DIR)
     .filter(d => {
-      const p = join(BASE_DIR, d)
-      return statSync(p).isDirectory() && existsSync(join(p, 'index.json'))
+      const dirPath = join(BASE_DIR, d)
+      return statSync(dirPath).isDirectory() && existsSync(join(dirPath, 'index.json'))
     })
 }
 
 function readIndex(fileKey) {
-  const p = join(BASE_DIR, fileKey, 'index.json')
-  if (!existsSync(p)) return null
-  return JSON.parse(readFileSync(p, 'utf8'))
+  const indexJsonPath = join(BASE_DIR, fileKey, 'index.json')
+  if (!existsSync(indexJsonPath)) return null
+  return JSON.parse(readFileSync(indexJsonPath, 'utf8'))
 }
 
 function readFlows(fileKey) {
-  const p = join(BASE_DIR, fileKey, 'flows.json')
-  if (!existsSync(p)) return null
-  return JSON.parse(readFileSync(p, 'utf8'))
+  const flowsJsonPath = join(BASE_DIR, fileKey, 'flows.json')
+  if (!existsSync(flowsJsonPath)) return null
+  return JSON.parse(readFileSync(flowsJsonPath, 'utf8'))
 }
 
 function findFrameMd(fileKey, nodeId) {
   const safe = nodeId.replace(/:/g, '_')
-  const p = join(BASE_DIR, fileKey, safe, 'frame.md')
-  if (!existsSync(p)) return null
-  return readFileSync(p, 'utf8')
+  const frameMdPath = join(BASE_DIR, fileKey, safe, 'frame.md')
+  if (!existsSync(frameMdPath)) return null
+  return readFileSync(frameMdPath, 'utf8')
 }
 
 function hasNodeJsonSnapshot(fileKey, nodeId) {
@@ -333,7 +335,7 @@ server.tool(
         const fm = parseFrontmatter(md)
         const nodeCount = parseInt(fm.node_count || '0', 10)
         const desc = fm.description || ''
-        const isThin = nodeCount <= 1 || desc.length < 30 || desc === 'screen' || /^(light|dark) mode screen$/.test(desc)
+        const isThin = nodeCount <= 1 || desc.length < MIN_DESCRIPTION_LENGTH || desc === 'screen' || /^(light|dark) mode screen$/.test(desc)
         const alreadySnapshotted = hasNodeJsonSnapshot(fk, normalizedId)
 
         if (isThin && !alreadySnapshotted) {
@@ -369,6 +371,34 @@ server.tool(
   },
   async ({ node_id, file_key }) => {
     try {
+    // Check snapshot-level flows.json for this specific node
+    if (node_id) {
+      const nodeIdSafe = node_id.replace(/:/g, '_')
+      const nodeDir = join(BASE_DIR, file_key || '', nodeIdSafe)
+      if (existsSync(nodeDir)) {
+        const snapshotDirs = readdirSync(nodeDir)
+          .filter(d => /^\d{8}T\d{6}Z$/.test(d))
+          .sort()
+          .reverse()
+        for (const snapDir of snapshotDirs) {
+          const snapshotFlowsPath = join(nodeDir, snapDir, 'flows.json')
+          if (existsSync(snapshotFlowsPath)) {
+            const snapshotFlows = JSON.parse(readFileSync(snapshotFlowsPath, 'utf8'))
+            if (snapshotFlows.interactions?.length) {
+              // Return snapshot-level flows (offline, diffable)
+              const formatted = snapshotFlows.interactions
+                .map(i => i.type === 'connector'
+                  ? `connector: ${i.from} → ${i.to}`
+                  : `[${i.trigger}] ${i.triggerNode?.name || i.triggerNode?.id} → ${i.destinationId}`)
+                .join('\n')
+              return { content: [{ type: 'text', text: `Flows for ${node_id} (from snapshot ${snapDir}):\n\n${formatted}` }] }
+            }
+            break
+          }
+        }
+      }
+    }
+
     const fileKeys = file_key ? [file_key] : findFileKeys()
 
     for (const fk of fileKeys) {
@@ -464,6 +494,74 @@ server.tool(
   }
 )
 
+function persistNode({ file_key, node_id, name, page, node_type, node_json, metadata, index: sharedIndex }) {
+  const nodeIdSafe = node_id.replace(/:/g, '_')
+  const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '').replace('T', 'T').slice(0, 15) + 'Z'
+  const fileDir = join(BASE_DIR, file_key)
+  const frameDir = join(fileDir, nodeIdSafe)
+  const snapshotDir = join(frameDir, timestamp)
+
+  mkdirSync(snapshotDir, { recursive: true })
+  if (node_json) {
+    const nodeJsonPath = join(snapshotDir, 'node.json')
+    writeFileSync(nodeJsonPath, node_json, 'utf8')
+    // Extract node-level flows into snapshot (best-effort)
+    try {
+      execSyncRaw(
+        `node "${SCRIPTS_DIR}/extract-flows.js" --node "${node_id}" --output "${join(snapshotDir, 'flows.json')}" "${nodeJsonPath}"`,
+        { encoding: 'utf8', timeout: 15000, stdio: 'pipe' }
+      )
+    } catch { /* flows extraction is non-critical */ }
+  }
+
+  const indexPath = join(fileDir, 'index.json')
+  const index = sharedIndex || (existsSync(indexPath) ? JSON.parse(readFileSync(indexPath, 'utf8')) : { fileKey: file_key, fileName: '', lastIndexed: timestamp, frames: [] })
+  const existing = index.frames.findIndex(f => f.id === node_id)
+  const entry = { id: node_id, name, type: node_type || 'FRAME', page: page || '' }
+  if (existing >= 0) index.frames[existing] = entry
+  else index.frames.push(entry)
+  index.lastIndexed = timestamp
+  writeFileSync(indexPath, JSON.stringify(index, null, 2), 'utf8')
+
+  const slug = (index.fileName || '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
+  const figmaUrl = `https://www.figma.com/design/${file_key}/${slug}?node-id=${node_id.replace(/:/g, '-')}`
+
+  const descParts = [node_type?.toLowerCase() || 'frame']
+  if (metadata?.components?.length) descParts.push(`with ${metadata.components.slice(0, 5).join(', ')}`)
+  if (metadata?.description) descParts.push(metadata.description)
+
+  const mdLines = [
+    '---',
+    `title: "${name.replace(/"/g, '\\"')}"`,
+    `description: "${descParts.join('; ').replace(/"/g, '\\"')}"`,
+    `figma_file: "${file_key}"`,
+    `figma_file_name: "${(index.fileName || '').replace(/"/g, '\\"')}"`,
+    `figma_node: "${node_id}"`,
+    `figma_page: "${(page || '').replace(/"/g, '\\"')}"`,
+    `figma_type: "${node_type || 'FRAME'}"`,
+    `figma_url: "${figmaUrl}"`,
+    `snapshot_timestamp: "${timestamp}"`,
+    `source: "figma-mcp"`,
+    '---', '',
+    `# ${name}`, '',
+    `> ${descParts.join('; ')}`, '',
+    `Page: ${page || 'Unknown'} | Type: ${node_type || 'FRAME'}`, '',
+  ]
+  if (metadata?.components?.length) {
+    mdLines.push('## Components Used')
+    for (const c of metadata.components) mdLines.push(`- ${c}`)
+    mdLines.push('')
+  }
+  if (metadata?.text_content?.length) {
+    mdLines.push('## Text Content')
+    for (const t of metadata.text_content.slice(0, 50)) mdLines.push(`- "${t}"`)
+    mdLines.push('')
+  }
+  writeFileSync(join(frameDir, 'frame.md'), mdLines.join('\n'), 'utf8')
+
+  return { snapshotDir, index }
+}
+
 // Tool: save
 server.tool(
   'save',
@@ -484,105 +582,44 @@ The node is stored as a snapshot and indexed for semantic search.`,
       components: z.array(z.string()).optional(),
       text_content: z.array(z.string()).optional(),
     }).optional().describe('Optional metadata to enrich the frame.md for search'),
+    save_children: z.boolean().optional().default(false).describe('When true, also save direct children of the node that match child_types as separate entries.'),
+    child_types: z.array(z.string()).optional().describe('Node types to save as children when save_children is true. Defaults to ["SECTION", "FRAME", "COMPONENT"].'),
   },
-  async ({ file_key, node_id, name, page, node_type, node_json, node_json_path, metadata }) => {
+  async ({ file_key, node_id, name, page, node_type, node_json, node_json_path, metadata, save_children, child_types }) => {
     if (!node_json && node_json_path) {
       node_json = readFileSync(node_json_path, 'utf8')
     }
-    const nodeIdSafe = node_id.replace(/:/g, '_')
-    const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '').replace('T', 'T').slice(0, 15) + 'Z'
-    const fileDir = join(BASE_DIR, file_key)
-    const frameDir = join(fileDir, nodeIdSafe)
-    const snapshotDir = join(frameDir, timestamp)
-
     try {
-      // Create directories
-      mkdirSync(snapshotDir, { recursive: true })
-
-      // Save node JSON if provided
-      if (node_json) {
-        writeFileSync(join(snapshotDir, 'node.json'), node_json, 'utf8')
-      }
-
-      // Update or create index.json
-      const indexPath = join(fileDir, 'index.json')
-      let index = { fileKey: file_key, fileName: '', lastIndexed: timestamp, frames: [] }
-      if (existsSync(indexPath)) {
-        index = JSON.parse(readFileSync(indexPath, 'utf8'))
-      }
-
-      // Add or update this frame in the index
-      const existing = index.frames.findIndex(f => f.id === node_id)
-      const entry = { id: node_id, name, type: node_type || 'FRAME', page: page || '' }
-      if (existing >= 0) {
-        index.frames[existing] = entry
-      } else {
-        index.frames.push(entry)
-      }
-      index.lastIndexed = timestamp
-      writeFileSync(indexPath, JSON.stringify(index, null, 2), 'utf8')
-
-      // Generate frame.md for search indexing
-      const slug = (index.fileName || '').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '')
-      const figmaUrl = `https://www.figma.com/design/${file_key}/${slug}?node-id=${node_id.replace(/:/g, '-')}`
-
-      const mdLines = [
-        '---',
-        `title: "${name.replace(/"/g, '\\"')}"`,
-      ]
-
-      // Build description from metadata or name
-      const descParts = [node_type?.toLowerCase() || 'frame']
-      if (metadata?.components?.length) descParts.push(`with ${metadata.components.slice(0, 5).join(', ')}`)
-      if (metadata?.description) descParts.push(metadata.description)
-      mdLines.push(`description: "${descParts.join('; ').replace(/"/g, '\\"')}"`)
-
-      mdLines.push(
-        `figma_file: "${file_key}"`,
-        `figma_file_name: "${(index.fileName || '').replace(/"/g, '\\"')}"`,
-        `figma_node: "${node_id}"`,
-        `figma_page: "${(page || '').replace(/"/g, '\\"')}"`,
-        `figma_type: "${node_type || 'FRAME'}"`,
-        `figma_url: "${figmaUrl}"`,
-        `snapshot_timestamp: "${timestamp}"`,
-        `source: "figma-mcp"`,
-        '---',
-        '',
-        `# ${name}`,
-        '',
-        `> ${descParts.join('; ')}`,
-        '',
-        `Page: ${page || 'Unknown'} | Type: ${node_type || 'FRAME'}`,
-        '',
-      )
-
-      if (metadata?.components?.length) {
-        mdLines.push('## Components Used')
-        for (const c of metadata.components) mdLines.push(`- ${c}`)
-        mdLines.push('')
-      }
-
-      if (metadata?.text_content?.length) {
-        mdLines.push('## Text Content')
-        for (const t of metadata.text_content.slice(0, 50)) mdLines.push(`- "${t}"`)
-        mdLines.push('')
-      }
-
-      writeFileSync(join(frameDir, 'frame.md'), mdLines.join('\n'), 'utf8')
+      const { snapshotDir, index } = persistNode({ file_key, node_id, name, page, node_type, node_json, metadata })
 
       // Try to update QMD index (best-effort)
       try {
-        execSyncRaw('qmd update 2>/dev/null && qmd embed 2>/dev/null', {
-          encoding: 'utf8', timeout: 30000, stdio: 'pipe'
-        })
-      } catch { /* QMD not available, that's fine */ }
+        execSyncRaw('qmd update 2>/dev/null && qmd embed 2>/dev/null', { encoding: 'utf8', timeout: 30000, stdio: 'pipe' })
+      } catch { /* QMD not available */ }
 
-      return {
-        content: [{
-          type: 'text',
-          text: `Saved: ${name} (${node_id}) to figma-differ\n  Type: ${node_type || 'FRAME'}\n  Page: ${page || 'Unknown'}\n  Snapshot: ${snapshotDir}\n  Searchable: yes (frame.md indexed)\n\nThis node is now searchable via figma-differ search.`
-        }]
+      if (!save_children || !node_json) {
+        return { content: [{ type: 'text', text: `Saved: ${name} (${node_id}) to figma-differ\n  Type: ${node_type || 'FRAME'}\n  Page: ${page || 'Unknown'}\n  Snapshot: ${snapshotDir}\n  Searchable: yes (frame.md indexed)\n\nThis node is now searchable via figma-differ search.` }] }
       }
+
+      // Save direct children
+      const allowedTypes = new Set(child_types?.length ? child_types : ['SECTION', 'FRAME', 'COMPONENT'])
+      let parsed
+      try { parsed = JSON.parse(node_json) } catch { return { content: [{ type: 'text', text: `Saved: ${name} (${node_id}) — save_children skipped: invalid JSON` }] } }
+
+      const docRoot = parsed.nodes ? (Object.values(parsed.nodes)[0]?.document || Object.values(parsed.nodes)[0]) : (parsed.document || parsed)
+      const children = (docRoot?.children || []).filter(c => allowedTypes.has(c.type))
+
+      const saved = []
+      for (const child of children) {
+        try {
+          persistNode({ file_key, node_id: child.id, name: child.name, page, node_type: child.type, node_json: JSON.stringify(child), index })
+          saved.push(`  → ${child.name} (${child.id})`)
+        } catch (childErr) {
+          saved.push(`  ✗ ${child.name} (${child.id}): ${childErr.message}`)
+        }
+      }
+
+      return { content: [{ type: 'text', text: `Saved: ${name} (${node_id}) + ${children.length} children\n${saved.join('\n')}\n\nAll entries are searchable via figma-differ search.` }] }
     } catch (e) {
       return { content: [{ type: 'text', text: `Failed to save: ${e.message}` }] }
     }

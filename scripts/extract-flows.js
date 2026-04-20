@@ -15,14 +15,19 @@
 const fs = require('fs')
 const path = require('path')
 
-const [,, fileKey, treePath] = process.argv
+const rawArgs = process.argv.slice(2)
+const outputFlagIdx = rawArgs.indexOf('--output')
+const outputPath = outputFlagIdx >= 0 ? rawArgs[outputFlagIdx + 1] : null
+const nodeFlagIdx = rawArgs.indexOf('--node')
+const singleNodeId = nodeFlagIdx >= 0 ? rawArgs[nodeFlagIdx + 1] : null
 
-if (!fileKey || !treePath) {
-  console.error('Usage: extract-flows.js <fileKey> <tree-json-path>')
-  process.exit(1)
-}
-
-const BASE_DIR = path.join(process.env.HOME, '.figma-differ', fileKey)
+// Remove flags from positional args
+const positionalArgs = rawArgs.filter((a, i) => {
+  if (a === '--output' || a === '--node') return false
+  if (i > 0 && (rawArgs[i-1] === '--output' || rawArgs[i-1] === '--node')) return false
+  return true
+})
+const [fileKey, treePath] = positionalArgs
 
 // ── Build node ID → info map ────────────────────────────────────────────────
 
@@ -158,11 +163,89 @@ function buildFrameFlowMap(flows) {
   return map
 }
 
+// ── Collect all nodes recursively (for single-node mode) ────────────────────
+
+function collectAllNodes(node, acc) {
+  if (!acc) acc = []
+  if (!node || typeof node !== 'object') return acc
+  acc.push(node)
+  for (const child of node.children || []) collectAllNodes(child, acc)
+  return acc
+}
+
 // ── Main ────────────────────────────────────────────────────────────────────
 
 function main() {
-  const raw = fs.readFileSync(treePath, 'utf8')
+  const raw = fs.readFileSync(treePath || positionalArgs[0], 'utf8')
   const data = JSON.parse(raw)
+
+  const isSingleNode = !data.document && data.id != null
+
+  if (isSingleNode) {
+    // Single-node mode: extract interactions + connectors from simplified node JSON
+    const allNodes = collectAllNodes(data)
+    const interactions = []
+
+    for (const n of allNodes) {
+      // Modern interactions
+      if (Array.isArray(n.interactions)) {
+        for (const interaction of n.interactions) {
+          const triggerType = interaction.trigger?.type || 'UNKNOWN'
+          for (const action of (interaction.actions || [])) {
+            if (action.destinationId) {
+              interactions.push({
+                type: 'prototype',
+                trigger: triggerType,
+                triggerNode: { id: n.id, name: n.name },
+                destinationId: action.destinationId,
+              })
+            }
+          }
+        }
+      }
+      // Legacy transition
+      if (n.transitionNodeID) {
+        interactions.push({
+          type: 'prototype',
+          trigger: 'ON_CLICK',
+          triggerNode: { id: n.id, name: n.name },
+          destinationId: n.transitionNodeID,
+        })
+      }
+      // CONNECTOR nodes
+      if (n.type === 'CONNECTOR' && n.connectorStart?.endpointNodeId && n.connectorEnd?.endpointNodeId) {
+        interactions.push({
+          type: 'connector',
+          from: n.connectorStart.endpointNodeId,
+          to: n.connectorEnd.endpointNodeId,
+        })
+      }
+    }
+
+    const output = {
+      nodeId: singleNodeId || data.id,
+      extractedAt: new Date().toISOString(),
+      totalInteractions: interactions.length,
+      prototypeFlows: interactions.filter(i => i.type === 'prototype').length,
+      connectors: interactions.filter(i => i.type === 'connector').length,
+      interactions,
+    }
+
+    const dest = outputPath || path.join(process.env.HOME, '.figma-differ', fileKey || 'unknown', 'node-flows.json')
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
+    fs.writeFileSync(dest, JSON.stringify(output, null, 2))
+    console.log(`Extracted ${interactions.length} interactions from node ${output.nodeId}`)
+    console.log(`Saved to: ${dest}`)
+    return
+  }
+
+  if (!fileKey || !treePath) {
+    console.error('Usage: extract-flows.js <fileKey> <tree-json-path>')
+    console.error('       extract-flows.js --node <nodeId> --output <path> <simplified.json>')
+    process.exit(1)
+  }
+
+  const BASE_DIR = path.join(process.env.HOME, '.figma-differ', fileKey)
   const document = data.document
 
   const nodeMap = buildNodeMap(document)
