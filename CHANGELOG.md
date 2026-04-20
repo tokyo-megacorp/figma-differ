@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.2] — 2026-04-20 — Plugin Manifest & Skill Name Fixes
+
+### Fixed
+- `.claude-plugin/plugin.json`: add missing `hooks` field (`"./hooks/hooks.json"`) — hooks were undiscoverable via manifest
+- All 11 `skills/*/SKILL.md`: `name` field changed from `figma-differ <skill>` to `<skill>` to match directory name (validation requirement)
+
 ## [0.5.1] — 2026-04-20 — Test Coverage & Self-Loop Predicate Fix
 
 ### Fixed

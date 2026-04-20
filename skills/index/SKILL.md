@@ -1,5 +1,5 @@
 ---
-name: figma-differ index
+name: index
 description: >
   Discovers and catalogs all frames in a Figma file at any depth. Creates a frame
   manifest for bulk operations. Use when the user runs /figma-differ:index with a

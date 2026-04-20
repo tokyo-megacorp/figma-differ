@@ -1,6 +1,6 @@
 {
   "name": "figma-differ",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "Snapshot Figma canvases, diff design changes, compare to implementation, and notify Slack.",
   "author": {
     "name": "Pedro Almeida",
@@ -12,6 +12,7 @@
   "keywords": ["figma", "design", "diff", "design-review"],
   "commands": "./commands/",
   "skills": "./skills/",
+  "hooks": "./hooks/hooks.json",
   "mcpServers": {
     "figma-differ": {
       "command": "node",

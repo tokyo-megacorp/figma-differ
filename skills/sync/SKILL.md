@@ -1,5 +1,5 @@
 ---
-name: figma-differ sync
+name: sync
 description: >
   Refresh snapshots and search index for tracked Figma files. Fetches current
   state from Figma, generates frame.md documents, and updates the QMD search

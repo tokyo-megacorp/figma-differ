@@ -1,5 +1,5 @@
 ---
-name: figma-differ diff-all
+name: diff-all
 description: >
   Diffs every frame in a Figma file against stored snapshots. Runs structural diff
   locally (zero API calls), dispatches vision analysis only on changed frames, and

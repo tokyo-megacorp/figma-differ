@@ -1,5 +1,5 @@
 ---
-name: figma-differ diff
+name: diff
 description: >
   Fetches the current state of a Figma node and diffs it against the latest stored
   snapshot. Runs both structural diff (JSON node tree) and visual comparison (PNG

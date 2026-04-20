@@ -1,5 +1,5 @@
 ---
-name: figma-differ review-comments
+name: review-comments
 description: >
   Fetches comments from a Figma file and surfaces unresolved ones grouped by node.
   Use when the user runs /figma-differ:review-comments with a Figma URL, or says

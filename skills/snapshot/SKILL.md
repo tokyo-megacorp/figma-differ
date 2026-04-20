@@ -1,5 +1,5 @@
 ---
-name: figma-differ snapshot
+name: snapshot
 description: >
   Takes a snapshot of a Figma node — fetches its JSON structure and PNG screenshot
   and stores both to ~/.figma-differ/ for later diffing. Use when the user runs

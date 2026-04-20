@@ -1,5 +1,5 @@
 ---
-name: figma-differ snapshot-all
+name: snapshot-all
 description: >
   Bulk snapshots every frame in a Figma file — fetches all node JSONs, exports PNGs,
   and stores comments. Uses a single API call for the tree and batched image exports.

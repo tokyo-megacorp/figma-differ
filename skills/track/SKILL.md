@@ -1,5 +1,5 @@
 ---
-name: figma-differ track
+name: track
 description: >
   Subscribe to a Figma file for automatic syncing and semantic search. Adds the
   file to tracked.json, runs initial index + snapshot-all + frame.md generation,

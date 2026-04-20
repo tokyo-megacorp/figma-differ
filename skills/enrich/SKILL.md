@@ -1,5 +1,5 @@
 ---
-name: figma-differ enrich
+name: enrich
 description: >
   Re-fetch and enrich thin Figma frames that have shallow data (1 node,
   generic description like "dark mode screen", or description under 30 chars).

@@ -1,5 +1,5 @@
 ---
-name: figma-differ notify
+name: notify
 description: >
   Posts diff results to Slack using persistent frame threads. Each tracked frame
   gets a permanent parent message; diffs and comments are thread replies.

@@ -1,5 +1,5 @@
 ---
-name: figma-differ search
+name: search
 description: >
   Semantic search across all tracked Figma frames using QMD hybrid search.
   Finds frames by content, component names, text strings, or natural language
