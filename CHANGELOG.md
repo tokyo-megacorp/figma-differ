@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.5.0] — 2026-04-20 — Enrich Skill, CANVAS Redirect & Flow/Description Fixes
+
+### Added
+- `scripts/enrich-thin-frames.sh` — scans `frame.md` files for a given fileKey, detects thin frames (node_count ≤ 1, description < 30 chars, or generic "dark mode screen"), re-fetches via REST API, regenerates frame docs, and updates QMD index
+- `skills/enrich/SKILL.md` — new `/figma-differ:enrich` skill: task-driven UX wrapping `enrich-thin-frames.sh` with auth check and haiku subagent dispatch
+
+### Fixed
+- `mcp-server.mjs` `get_flows` snapshot path: filter self-loops with shape-aware predicate — prototype self-loops (`triggerNode.id === destinationId`) and connector self-loops (`from.id === to.id`) no longer appear in output (closes #4)
+- `generate-frame-md.js` `synthesizeDescription`: use `frame.name` as fallback for SECTION/CANVAS nodes when regex heuristics don't match — eliminates generic "dark mode screen" descriptions for named sections (closes #6)
+- `skills/snapshot/SKILL.md`: CANVAS node detection now **stops and redirects** to `/figma-differ:index` instead of saving a 180MB+ node.json; advisory-only behaviour removed (closes #7)
+
 ## [0.4.3] — 2026-04-20 — Cross-Subtree Flow Hint & Refactor
 
 ### Fixed
