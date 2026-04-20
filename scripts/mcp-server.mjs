@@ -575,14 +575,17 @@ function persistNode({ file_key, node_id, name, page, node_type, node_json, meta
   writeNodeSnapshot({ snapshotDir, nodeJsonPath, node_json, node_id })
   const { index } = updateFrameIndex({ fileDir, file_key, node_id, name, node_type, page, timestamp, sharedIndex })
   buildFrameMd({ file_key, node_id, name, page, node_type, metadata, index, timestamp, frameDir })
+
+  return { snapshotDir, index }
+}
+
+function tryEnrichFrameMarkdown(file_key, node_id) {
   try {
     execSyncRaw(
       `node "${SCRIPTS_DIR}/generate-frame-md.js" "${file_key}" "${node_id}"`,
       { encoding: 'utf8', timeout: QMD_UPDATE_TIMEOUT_MS, stdio: 'pipe' }
     )
   } catch { /* non-critical: full frame.md extraction */ }
-
-  return { snapshotDir, index }
 }
 
 function saveChildren({ file_key, page, node_json, child_types, sharedIndex }) {
@@ -595,6 +598,7 @@ function saveChildren({ file_key, page, node_json, child_types, sharedIndex }) {
   for (const child of children) {
     try {
       persistNode({ file_key, node_id: child.id, name: child.name, page, node_type: child.type, node_json: JSON.stringify(child), index: sharedIndex })
+      tryEnrichFrameMarkdown(file_key, child.id)
       saved.push(`  → ${child.name} (${child.id})`)
     } catch (childErr) {
       saved.push(`  ✗ ${child.name} (${child.id}): ${childErr.message}`)
@@ -632,6 +636,7 @@ The node is stored as a snapshot and indexed for semantic search.`,
     }
     try {
       const { snapshotDir, index } = persistNode({ file_key, node_id, name, page, node_type, node_json, metadata })
+      tryEnrichFrameMarkdown(file_key, node_id)
 
       // Try to update QMD index (best-effort)
       try {
