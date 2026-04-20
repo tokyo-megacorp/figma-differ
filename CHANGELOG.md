@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.2.6] — 2026-04-20 — Fix Misleading Enrichment Hint on Snapshotted Frames
+
+### Fixed
+- `get_frame` no longer fires the "shallow data" enrichment hint when a `node.json` snapshot already exists on disk — hint now only fires when no snapshot is present
+
 ## [0.2.5] — 2026-04-20 — MCP Stability, Large Payload Support & Depth Tracking
 
 ### Added
