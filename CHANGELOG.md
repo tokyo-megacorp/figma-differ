@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.2.5] — 2026-04-20 — MCP Stability, Large Payload Support & Depth Tracking
+
+### Added
+- `node_json_path` parameter on `save` tool — pass a file path instead of inlining large JSON payloads (handles 15MB+ SECTION nodes)
+- `--depth 1` flag for `/figma-differ:track` — auto-saves direct FRAME/COMPONENT/SECTION children of the tracked node via `fetch_node_json | simplify-node.mjs`
+
+### Fixed
+- MCP server no longer crashes on unhandled exceptions — global `uncaughtException` and `unhandledRejection` handlers log to stderr without killing the process
+- `get_frame`, `get_flows`, `list_frames` handlers wrapped in try/catch — return error text instead of disconnecting
+- `server.connect()` wrapped in try/catch with stderr logging on transport failure
+- MCP instructions now include a `CRITICAL` name guardrail: never use URL slug or node-id as the frame name — always extract real name from the response
+
 ## [0.2.4] — 2026-04-20 — Fix Absolute Script Paths in Fallback Instructions
 
 ### Fixed

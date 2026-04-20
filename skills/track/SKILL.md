@@ -6,7 +6,7 @@ description: >
   and initializes the QMD search collection. Use when the user runs
   /figma-differ:track or says "track this Figma file", "subscribe to Figma",
   "watch this design file", or "add to tracked files".
-argument-hint: "<figma-file-url>"
+argument-hint: "<figma-file-url> [--depth 1]"
 allowed-tools:
   - Bash
   - Read
@@ -19,9 +19,12 @@ allowed-tools:
 
 ## Track a Figma File
 
-### 1. Parse the URL
+### 1. Parse the URL and arguments
 
 Extract `fileKey` from the Figma URL (`https://www.figma.com/design/<fileKey>/...`).
+
+Parse flags from `$ARGUMENTS`:
+- `--depth 1` — after tracking the root node, also save its direct FRAME/COMPONENT/SECTION children
 
 ### 2. Check prerequisites
 
@@ -121,17 +124,43 @@ qmd_reindex
 
 If QMD is not installed, warn the user but don't fail — tracking and snapshots still work without search.
 
-### 10. Update tracked.json
+### 10. Save direct children (if `--depth 1`)
+
+If `--depth 1` was passed, discover and save direct child frames:
+
+```bash
+# Fetch and simplify the root node to discover its children
+NODE_ID="<nodeId from URL, or omit if tracking full file>"
+SIMPLIFIED="/tmp/figma-children-<fileKey>-$$.json"
+bash $CLAUDE_PLUGIN_ROOT/scripts/figma-api.sh fetch_node_json <fileKey> $NODE_ID \
+  | node $CLAUDE_PLUGIN_ROOT/scripts/simplify-node.mjs > "$SIMPLIFIED"
+```
+
+Read `$SIMPLIFIED` and collect all `.children[]` where `type` is `FRAME`, `COMPONENT`, or `SECTION`.
+
+For each child, call `figma-differ save`:
+- `file_key` ← fileKey
+- `node_id` ← child.id
+- `name` ← child.name  ← ALWAYS use the real name from the JSON, never a placeholder
+- `node_type` ← child.type
+- `node_json_path` ← write child to `/tmp/figma-child-<id>.json` and pass the path (avoids inline size limits)
+
+Clean up temp files after all saves complete.
+
+Report child count in the final summary.
+
+### 11. Update tracked.json
 
 Set `lastSynced` to the current ISO 8601 timestamp.
 
-### 11. Report
+### 12. Report
 
 ```
 Tracked: <fileName> (<fileKey>)
   Frames indexed: N
   Snapshots stored: M
   Frame docs generated: G
+  Children saved: K (--depth 1)  ← only if --depth 1 was used
   QMD search: ready (M documents) | unavailable (qmd not installed)
 
 Run /figma-differ:search "query" to find frames.

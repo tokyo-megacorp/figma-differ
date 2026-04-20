@@ -14,16 +14,24 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
-import { execSync } from 'child_process'
+import { execSync, execSync as execSyncRaw } from 'child_process'
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync, statSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { homedir } from 'os'
 
 const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url))
-import { execSync as execSyncRaw } from 'child_process'
 
 const BASE_DIR = join(homedir(), '.figma-differ')
+
+// ── Global error guards — keep the server alive on unhandled throws ──────────
+
+process.on('uncaughtException', (err) => {
+  process.stderr.write(`[figma-differ] uncaughtException: ${err.message}\n${err.stack}\n`)
+})
+process.on('unhandledRejection', (reason) => {
+  process.stderr.write(`[figma-differ] unhandledRejection: ${reason}\n`)
+})
 
 // ── Frame guidance helpers ────────────────────────────────────────────────────
 
@@ -168,7 +176,7 @@ function qmdSearch(query, limit = 10) {
 
 const server = new McpServer({
   name: 'figma-differ',
-  version: '0.2.4',
+  version: '0.2.5',
   instructions: `figma-differ is a local Figma design database with semantic search, change tracking, and flow detection.
 
 ## When to use figma-differ vs Figma MCP
@@ -198,11 +206,11 @@ bash ${SCRIPTS_DIR}/figma-api.sh fetch_node_png <file_key> <node_id> <output_pat
 Then call figma-differ save with the simplified result:
 \`\`\`
 figma-differ save:
-  file_key  ← same file_key used above
-  node_id   ← same node_id used above
-  name      ← .name from /tmp/simplified.json
-  node_type ← .type from /tmp/simplified.json
-  node_json ← contents of /tmp/simplified.json (stringified)
+  file_key      ← same file_key used above
+  node_id       ← same node_id used above
+  name          ← .name from /tmp/simplified.json  ← REQUIRED: use the real name, NEVER a URL slug or node-id placeholder
+  node_type     ← .type from /tmp/simplified.json
+  node_json_path ← "/tmp/simplified.json"  ← preferred for large nodes (avoids inline string size limits)
   metadata:
     description  ← one-line summary derived from the node name and type
     components   ← collect all nodes where type is COMPONENT or INSTANCE (from simplified JSON)
@@ -214,6 +222,8 @@ The REST API path produces less semantic richness than Figma MCP (no React/Tailw
 ## Auto-save: Figma MCP → figma-differ
 
 IMPORTANT: After calling Figma MCP's get_design_context or get_metadata, ALWAYS call figma-differ save to cache the result locally. This makes the design searchable and diffable.
+
+CRITICAL — name field: ALWAYS extract the real node name from the response. NEVER use a URL slug, node-id string, or placeholder like "Node 1234-5678". If the name is unknown, call get_design_context or fetch_node_json first to discover it.
 
 ### Field mapping from get_design_context response:
 
@@ -300,6 +310,7 @@ server.tool(
     summary: z.boolean().optional().describe('When true, return a compact summary instead of the full frame markdown.'),
   },
   async ({ node_id, file_key, summary }) => {
+    try {
     const normalizedId = node_id.replace(/_/g, ':')
 
     const fileKeys = file_key ? [file_key] : findFileKeys()
@@ -331,6 +342,9 @@ server.tool(
     }
 
     return { content: [{ type: 'text', text: generateFrameNotFoundGuide(node_id, SCRIPTS_DIR) }] }
+    } catch (e) {
+      return { content: [{ type: 'text', text: `get_frame error: ${e.message}` }] }
+    }
   }
 )
 
@@ -343,6 +357,7 @@ server.tool(
     file_key: z.string().optional().describe('Figma file key. If omitted, searches all tracked files.'),
   },
   async ({ node_id, file_key }) => {
+    try {
     const fileKeys = file_key ? [file_key] : findFileKeys()
 
     for (const fk of fileKeys) {
@@ -387,6 +402,9 @@ server.tool(
     }
 
     return { content: [{ type: 'text', text: 'No flow data found. Run /figma-differ:track or /figma-differ:sync first.' }] }
+    } catch (e) {
+      return { content: [{ type: 'text', text: `get_flows error: ${e.message}` }] }
+    }
   }
 )
 
@@ -399,6 +417,7 @@ server.tool(
     page: z.string().optional().describe('Filter by page name (case-insensitive partial match).'),
   },
   async ({ file_key, page }) => {
+    try {
     const fileKeys = file_key ? [file_key] : findFileKeys()
     const results = []
 
@@ -428,6 +447,9 @@ server.tool(
     }
 
     return { content: [{ type: 'text', text: results.join('\n') }] }
+    } catch (e) {
+      return { content: [{ type: 'text', text: `list_frames error: ${e.message}` }] }
+    }
   }
 )
 
@@ -444,14 +466,18 @@ The node is stored as a snapshot and indexed for semantic search.`,
     name: z.string().describe('Human-readable name for the node'),
     page: z.string().optional().describe('Page name the node belongs to'),
     node_type: z.string().optional().default('FRAME').describe('Node type: FRAME, COMPONENT, SECTION, etc.'),
-    node_json: z.string().optional().describe('Full node JSON from Figma API (stringified). If provided, stored as snapshot.'),
+    node_json: z.string().optional().describe('Full node JSON from Figma API (stringified). Use for small payloads. For large nodes (>500KB) use node_json_path instead.'),
+    node_json_path: z.string().optional().describe('Path to a file containing the node JSON. Preferred over node_json for large nodes (e.g. /tmp/simplified.json). node_json takes precedence if both are provided.'),
     metadata: z.object({
       description: z.string().optional(),
       components: z.array(z.string()).optional(),
       text_content: z.array(z.string()).optional(),
     }).optional().describe('Optional metadata to enrich the frame.md for search'),
   },
-  async ({ file_key, node_id, name, page, node_type, node_json, metadata }) => {
+  async ({ file_key, node_id, name, page, node_type, node_json, node_json_path, metadata }) => {
+    if (!node_json && node_json_path) {
+      node_json = readFileSync(node_json_path, 'utf8')
+    }
     const nodeIdSafe = node_id.replace(/:/g, '_')
     const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '').replace('T', 'T').slice(0, 15) + 'Z'
     const fileDir = join(BASE_DIR, file_key)
@@ -554,5 +580,10 @@ The node is stored as a snapshot and indexed for semantic search.`,
 
 // ── Start ───────────────────────────────────────────────────────────────────
 
-const transport = new StdioServerTransport()
-await server.connect(transport)
+try {
+  const transport = new StdioServerTransport()
+  await server.connect(transport)
+} catch (e) {
+  process.stderr.write(`[figma-differ] failed to start: ${e.message}\n`)
+  process.exit(1)
+}
