@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.4.0] — 2026-04-20 — Figma MCP Integration & Design Tokens
+
+### Added
+- `save` tool: `variables_json` param — persists `get_variable_defs` output as `variables.json` in the snapshot; `generate-frame-md.js` surfaces it as `## Design Tokens` section (COLOR, FLOAT, STRING grouped by type), making design tokens semantically searchable
+- `track` skill: prefer Figma MCP `get_metadata` for `--children` discovery — sparse XML (IDs + names only) avoids downloading the full parent JSON (~15MB+); REST `save_children: true` remains the fallback
+- MCP server instructions: document `get_variable_defs` → `variables_json` chain and `get_metadata` child-discovery TIP
+
+### Fixed
+- `get_flows`: resolve raw node IDs to frame names in snapshot-level output using `index.json` — connectors now display `Profile Screen → Settings` instead of `44743:71762 → 44743:71780`
+
+### Changed
+- `generate-frame-md.js` `generateFrameMd`: destructured params object (`{ document, frame, index, timestamp, variables }`) — fixes FunctionArgs arity=5 Uncle Bob violation
+
 ## [0.3.4] — 2026-04-20 — Fix Subtree Node ID Normalization
 
 ### Fixed
