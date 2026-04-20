@@ -6,13 +6,13 @@
   },
   "metadata": {
     "description": "Local Figma design database with semantic search, change tracking, flow detection, and Slack notifications.",
-    "version": "0.4.2"
+    "version": "0.4.3"
   },
   "plugins": [
     {
       "name": "figma-differ",
       "description": "Snapshot Figma canvases, diff design changes, search frames semantically, detect screen flows, and notify Slack.",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "author": { "name": "Pedro Almeida" },
       "source": {
         "source": "url",

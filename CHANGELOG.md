@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.3] — 2026-04-20 — Cross-Subtree Flow Hint & Refactor
+
+### Fixed
+- `mcp-server.mjs` `get_flows`: fall back to any local `index.json` when `file_key` is omitted — improves cross-subtree name resolution without extra arguments
+- `mcp-server.mjs` `get_flows`: detect unresolved raw IDs and append actionable hint: "Run /figma-differ:track for full name resolution"
+
+### Changed
+- `extract-flows.js`: extract `buildNameMap` and `enrichConnectorEndpoints` from `extractFlowsFromSingleNode` — function now ≤20 lines (Uncle Bob FunctionSize)
+
 ## [0.4.2] — 2026-04-20 — Fix Connector Name Resolution in Single-Node Flows
 
 ### Fixed
