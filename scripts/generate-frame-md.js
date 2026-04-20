@@ -404,7 +404,7 @@ const MAX_FRAME_TEXTS = 50
 const MAX_PAGE_HIERARCHY = 40
 const MAX_FRAME_HIERARCHY = 80
 
-function generateFrameMd(document, frame, index, timestamp, variables) {
+function generateFrameMd({ document, frame, index, timestamp, variables }) {
   const nodes = walkNodes(document)
   const isPage = document.type === 'CANVAS'
 
@@ -719,7 +719,7 @@ function main() {
       const variables = snapshot.variablesPath
         ? extractDesignTokens(fs.readFileSync(snapshot.variablesPath, 'utf8'))
         : null
-      const md = generateFrameMd(document, frame, index, snapshot.timestamp, variables)
+      const md = generateFrameMd({ document, frame, index, timestamp: snapshot.timestamp, variables })
       const outPath = path.join(BASE_DIR, nodeIdSafe, 'frame.md')
       fs.writeFileSync(outPath, md, 'utf8')
       generated++
