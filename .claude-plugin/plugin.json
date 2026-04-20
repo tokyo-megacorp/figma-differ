@@ -1,6 +1,6 @@
 {
   "name": "figma-differ",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Snapshot Figma canvases, diff design changes, compare to implementation, and notify Slack.",
   "author": {
     "name": "Pedro Almeida",

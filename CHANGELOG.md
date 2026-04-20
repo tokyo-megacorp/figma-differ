@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.5.1] — 2026-04-20 — Test Coverage & Self-Loop Predicate Fix
+
+### Fixed
+- `mcp-server.mjs` `get_flows` snapshot path: self-loop predicate corrected — was `triggerNode.id === destinationId` (wrong), now `destinationId === snapshotFlows.nodeId` (destination resolves to the same frame being viewed)
+- `scripts/enrich-thin-frames.sh`: remove extraneous `source auth.sh` call that caused silent exit under `set -euo pipefail`
+
+### Other
+- `tests/mcp-get-flows-contract.test.js`: snapshot-path self-loop tests (prototype + connector, self-loops absent, real edges present)
+- `tests/generate-frame-md.test.js`: SECTION description tests (frame.name fallback when no heuristic matches; heuristic wins when regex matches)
+- `tests/enrich-thin-frames.test.sh`: auth guard, unknown fileKey, thin/rich frame detection logic
+- `package.json`: add `enrich-thin-frames.test.sh` to `test:shell` suite
+
 ## [0.5.0] — 2026-04-20 — Enrich Skill, CANVAS Redirect & Flow/Description Fixes
 
 ### Added
