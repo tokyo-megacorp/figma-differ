@@ -32,7 +32,7 @@ for (let i = 0; i < args.length; i++) {
     nodeId = args[i + 1]
     i++
   } else if (args[i] === '--subtree' && args[i + 1]) {
-    subtreeId = args[i + 1].replace(/_/g, ':')
+    subtreeId = args[i + 1].replace(/[_-]/g, ':')
     i++
   } else {
     filePath = args[i]
