@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1] — 2026-04-20 — Marketplace Schema Fix
+
+### Fixed
+- `marketplace.json` source field changed from `"."` to proper `{ source: "url", url: "..." }` schema
+- Removed `slack` from plugin keywords (implementation detail, not a use case)
+- Fixed `homepage` and `repository` URLs in `plugin.json` (`ipedro` → `tokyo-megacorp`)
+
 ## [0.2.0] — 2026-04-20 — Dashboard Cockpit & MCP Foundation
 
 ### Added
