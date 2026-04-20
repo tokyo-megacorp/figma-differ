@@ -27,7 +27,7 @@ const BASE_DIR = join(homedir(), '.figma-differ')
 
 // ── Frame guidance helpers ────────────────────────────────────────────────────
 
-function generateFrameEnrichmentHint(fileKey, nodeId, nodeCount, scriptsDir) {
+function generateFrameEnrichmentHint(fileKey, nodeId, nodeCount) {
   const plural = nodeCount !== 1 ? 's' : ''
   return [
     `\n\n---`,
@@ -38,7 +38,7 @@ function generateFrameEnrichmentHint(fileKey, nodeId, nodeCount, scriptsDir) {
     `2. Call figma-differ save with extracted components and text content`,
     ``,
     `**Fallback (if Figma MCP unavailable or errors):**`,
-    `1. Run: \`bash ${scriptsDir}/figma-api.sh fetch_node_json ${fileKey} ${nodeId} | node ${scriptsDir}/simplify-node.mjs > /tmp/simplified.json\``,
+    `1. Run: \`bash ${SCRIPTS_DIR}/figma-api.sh fetch_node_json ${fileKey} ${nodeId} | node ${SCRIPTS_DIR}/simplify-node.mjs > /tmp/simplified.json\``,
     `2. Extract name, node_type, components (INSTANCE/COMPONENT nodes), text_content (TEXT nodes) from simplified JSON`,
     `3. Call figma-differ save with node_json ← contents of /tmp/simplified.json and extracted metadata`,
   ].join('\n')
@@ -317,7 +317,7 @@ server.tool(
         if (isThin) {
           const fileKey = fm.figma_file || ''
           const nodeId = fm.figma_node || ''
-          const enrichmentHint = generateFrameEnrichmentHint(fileKey, nodeId, nodeCount, SCRIPTS_DIR)
+          const enrichmentHint = generateFrameEnrichmentHint(fileKey, nodeId, nodeCount)
           return { content: [{ type: 'text', text: text + enrichmentHint }] }
         }
 
