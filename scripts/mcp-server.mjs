@@ -393,11 +393,20 @@ server.tool(
           if (existsSync(snapshotFlowsPath)) {
             const snapshotFlows = JSON.parse(readFileSync(snapshotFlowsPath, 'utf8'))
             if (snapshotFlows.interactions?.length) {
-              // Return snapshot-level flows (offline, diffable)
+              // Build ID → name map from index.json for readable output
+              const idToName = {}
+              if (file_key) {
+                const indexPath = join(BASE_DIR, file_key, 'index.json')
+                if (existsSync(indexPath)) {
+                  const idx = JSON.parse(readFileSync(indexPath, 'utf8'))
+                  for (const f of idx.frames || []) idToName[f.id] = f.name
+                }
+              }
+              const resolveName = id => idToName[id] || id
               const formatted = snapshotFlows.interactions
                 .map(i => i.type === 'connector'
-                  ? `connector: ${i.from} → ${i.to}`
-                  : `[${i.trigger}] ${i.triggerNode?.name || i.triggerNode?.id} → ${i.destinationId}`)
+                  ? `connector: ${resolveName(i.from)} → ${resolveName(i.to)}`
+                  : `[${i.trigger}] ${i.triggerNode?.name || resolveName(i.triggerNode?.id)} → ${resolveName(i.destinationId)}`)
                 .join('\n')
               return { content: [{ type: 'text', text: `Flows for ${node_id} (from snapshot ${snapDir}):\n\n${formatted}` }] }
             }
