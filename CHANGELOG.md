@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.3.3] — 2026-04-20 — Fix Prototype Depth & DoOneThing Refactor
+
+### Fixed
+- `figma-api.sh` `fetch_prototype_data`: use `?depth=4` instead of `?depth=50` — depth=50 exceeds Figma's response size limit (HTTP 400); depth=4 reaches Document→Page→Section→Frame with interactions (~26MB) without hitting the cap
+
+### Changed
+- `mcp-server.mjs`: extract `tryEnrichFrameMarkdown(file_key, node_id)` from `persistNode()` — DoOneThing violation; enrichment is now a separate best-effort step called explicitly by callers (`save` handler and `saveChildren`)
+
 ## [0.3.2] — 2026-04-20 — Fix fetch_prototype_data Depth Parameter
 
 ### Fixed
