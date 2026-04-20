@@ -95,15 +95,15 @@ const COLOR_NAMES = [
 function colorName(r, g, b) {
   let best = 'unknown', bestDist = Infinity
   for (const [cr, cg, cb, name] of COLOR_NAMES) {
-    const d = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2
-    if (d < bestDist) { bestDist = d; best = name }
+    const squaredDistance = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2
+    if (squaredDistance < bestDist) { bestDist = squaredDistance; best = name }
   }
   return best
 }
 
 function rgbToHex(r, g, b) {
-  const h = v => Math.round(v * 255).toString(16).padStart(2, '0')
-  return `#${h(r)}${h(g)}${h(b)}`
+  const toHexByte = v => Math.round(v * 255).toString(16).padStart(2, '0')
+  return `#${toHexByte(r)}${toHexByte(g)}${toHexByte(b)}`
 }
 
 function extractColors(nodes, rootNode) {
@@ -229,7 +229,7 @@ function collectSemanticSignals(frame, document, texts) {
   }
 }
 
-function synthesizeDescription(frame, document, colors, buttons, formFields, layoutPatterns, components, texts) {
+function synthesizeDescription({ frame, document, colors, buttons, formFields, layoutPatterns, components, texts }) {
   const parts = []
   const semanticSignals = collectSemanticSignals(frame, document, texts)
 
@@ -335,8 +335,12 @@ function getFrameFlows(frameId, flowsData) {
 }
 
 let _flowsCache = undefined
-function getCachedFlows() {
+function initFlowsCache() {
   if (_flowsCache === undefined) _flowsCache = loadFlows()
+}
+
+function getCachedFlows() {
+  initFlowsCache()
   return _flowsCache
 }
 
@@ -394,6 +398,11 @@ function extractComponentStates(nodes) {
 
 const MAX_INTERACTIONS_DISPLAY = 20
 const MAX_CONNECTORS_DISPLAY = 10
+const MAX_PAGE_COMPONENTS = 20
+const MAX_PAGE_TEXTS = 30
+const MAX_FRAME_TEXTS = 50
+const MAX_PAGE_HIERARCHY = 40
+const MAX_FRAME_HIERARCHY = 80
 
 function generateFrameMd(document, frame, index, timestamp) {
   const nodes = walkNodes(document)
@@ -414,7 +423,7 @@ function generateFrameMd(document, frame, index, timestamp) {
   const formFields = extractFormFields(nodes)
   const layoutPatterns = extractLayoutPatterns(nodes)
 
-  let description = synthesizeDescription(frame, document, colors, buttons, formFields, layoutPatterns, components, texts)
+  let description = synthesizeDescription({ frame, document, colors, buttons, formFields, layoutPatterns, components, texts })
 
   // Enrich description with flow context
   const frameFlows = getFrameFlows(frame.id, getCachedFlows())
@@ -565,7 +574,7 @@ function generateFrameMd(document, frame, index, timestamp) {
   // Components section
   if (components.size > 0) {
     lines.push('## Components Used')
-    const compCap = isPage ? 20 : Infinity
+    const compCap = isPage ? MAX_PAGE_COMPONENTS : Infinity
     let compIdx = 0
     for (const [name, count] of components) {
       if (compIdx >= compCap) {
@@ -579,7 +588,7 @@ function generateFrameMd(document, frame, index, timestamp) {
   }
 
   // Text content section
-  const textCap = isPage ? 30 : 50
+  const textCap = isPage ? MAX_PAGE_TEXTS : MAX_FRAME_TEXTS
   if (texts.length > 0) {
     lines.push('## Text Content')
     for (const t of texts.slice(0, textCap)) {
@@ -594,7 +603,7 @@ function generateFrameMd(document, frame, index, timestamp) {
   // Hierarchy section (capped to avoid huge files)
   if (hierarchy.length > 0) {
     lines.push('## Hierarchy')
-    const hierCap = isPage ? 40 : 80
+    const hierCap = isPage ? MAX_PAGE_HIERARCHY : MAX_FRAME_HIERARCHY
     lines.push(...hierarchy.slice(0, hierCap))
     if (hierarchy.length > hierCap) {
       lines.push(`- _...${hierarchy.length - hierCap} more nodes_`)

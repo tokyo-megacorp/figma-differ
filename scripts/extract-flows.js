@@ -15,19 +15,22 @@
 const fs = require('fs')
 const path = require('path')
 
-const rawArgs = process.argv.slice(2)
-const outputFlagIdx = rawArgs.indexOf('--output')
-const outputPath = outputFlagIdx >= 0 ? rawArgs[outputFlagIdx + 1] : null
-const nodeFlagIdx = rawArgs.indexOf('--node')
-const singleNodeId = nodeFlagIdx >= 0 ? rawArgs[nodeFlagIdx + 1] : null
+function parseArgs(argv) {
+  const rawArgs = argv.slice(2)
+  const outputFlagIdx = rawArgs.indexOf('--output')
+  const outputPath = outputFlagIdx >= 0 ? rawArgs[outputFlagIdx + 1] : null
+  const nodeFlagIdx = rawArgs.indexOf('--node')
+  const singleNodeId = nodeFlagIdx >= 0 ? rawArgs[nodeFlagIdx + 1] : null
+  const positionalArgs = rawArgs.filter((a, i) => {
+    if (a === '--output' || a === '--node') return false
+    if (i > 0 && (rawArgs[i-1] === '--output' || rawArgs[i-1] === '--node')) return false
+    return true
+  })
+  const [fileKey, treePath] = positionalArgs
+  return { outputPath, singleNodeId, positionalArgs, fileKey, treePath }
+}
 
-// Remove flags from positional args
-const positionalArgs = rawArgs.filter((a, i) => {
-  if (a === '--output' || a === '--node') return false
-  if (i > 0 && (rawArgs[i-1] === '--output' || rawArgs[i-1] === '--node')) return false
-  return true
-})
-const [fileKey, treePath] = positionalArgs
+const { outputPath, singleNodeId, positionalArgs, fileKey, treePath } = parseArgs(process.argv)
 
 // ── Build node ID → info map ────────────────────────────────────────────────
 
@@ -85,7 +88,7 @@ function resolveToFrame(nodeId, nodeMap, parentMap) {
 
 function extractConnectorFlows(document, nodeMap, parentMap) {
   const flows = []
-  function find(node) {
+  function walkConnectors(node) {
     if (!node) return
     if (node.type === 'CONNECTOR') {
       const startId = node.connectorStart?.endpointNodeId
@@ -102,15 +105,15 @@ function extractConnectorFlows(document, nodeMap, parentMap) {
         }
       }
     }
-    for (const c of node.children || []) find(c)
+    for (const c of node.children || []) walkConnectors(c)
   }
-  find(document)
+  walkConnectors(document)
   return flows
 }
 
 function extractPrototypeFlows(document, nodeMap, parentMap) {
   const flows = []
-  function find(node, ancestorFrame) {
+  function walkPrototypes(node, ancestorFrame) {
     if (!node) return
     // Track the nearest frame ancestor as we descend
     const isFrame = FLOW_NODE_TYPES.has(node.type) && node.type !== 'SHAPE_WITH_TEXT'
@@ -130,17 +133,17 @@ function extractPrototypeFlows(document, nodeMap, parentMap) {
         })
       }
     }
-    for (const c of node.children || []) find(c, currentFrame)
+    for (const c of node.children || []) walkPrototypes(c, currentFrame)
   }
   for (const page of document.children || []) {
-    find(page, null)
+    walkPrototypes(page, null)
   }
   return flows
 }
 
 // ── Deduplicate ─────────────────────────────────────────────────────────────
 
-function dedup(flows) {
+function deduplicateFlows(flows) {
   const seen = new Set()
   return flows.filter(f => {
     const key = `${f.type}:${f.from.id}→${f.to.id}`
@@ -217,18 +220,21 @@ function extractFlowsFromSingleNode(data, { singleNodeId, outputPath, fileKey })
 // ── Main ────────────────────────────────────────────────────────────────────
 
 function main() {
-  const raw = fs.readFileSync(treePath || positionalArgs[0], 'utf8')
+  const inputPath = treePath || positionalArgs[0]
+  const isSingleNodeRequest = singleNodeId != null || outputPath != null
+
+  if (!inputPath) {
+    console.error('Usage: extract-flows.js <fileKey> <tree-json-path>')
+    console.error('       extract-flows.js --node <nodeId> --output <path> <simplified.json>')
+    process.exit(1)
+  }
+
+  const raw = fs.readFileSync(inputPath, 'utf8')
   const data = JSON.parse(raw)
 
   if (!data.document && data.id != null) {
     extractFlowsFromSingleNode(data, { singleNodeId, outputPath, fileKey })
     return
-  }
-
-  if (!fileKey || !treePath) {
-    console.error('Usage: extract-flows.js <fileKey> <tree-json-path>')
-    console.error('       extract-flows.js --node <nodeId> --output <path> <simplified.json>')
-    process.exit(1)
   }
 
   const BASE_DIR = path.join(process.env.HOME, '.figma-differ', fileKey)
@@ -239,7 +245,7 @@ function main() {
 
   const connectorFlows = extractConnectorFlows(document, nodeMap, parentMap)
   const prototypeFlows = extractPrototypeFlows(document, nodeMap, parentMap)
-  const allFlows = dedup([...connectorFlows, ...prototypeFlows])
+  const allFlows = deduplicateFlows([...connectorFlows, ...prototypeFlows])
   const frameFlowMap = buildFrameFlowMap(allFlows)
 
   const output = {
