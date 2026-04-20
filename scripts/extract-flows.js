@@ -178,30 +178,32 @@ function collectAllNodes(node, acc) {
 
 // ── Single-node extraction ───────────────────────────────────────────────────
 
-function extractFlowsFromSingleNode(data, { singleNodeId, outputPath, fileKey }) {
-  const allNodes = collectAllNodes(data)
-  const interactions = []
+function extractPrototypeInteractions(node) {
+  if (!Array.isArray(node.interactions)) return []
+  const triggerNode = { id: node.id, name: node.name }
+  return node.interactions.flatMap(interaction => {
+    const trigger = interaction.trigger?.type || 'UNKNOWN'
+    return (interaction.actions || [])
+      .filter(a => a.destinationId)
+      .map(a => ({ type: 'prototype', trigger, triggerNode, destinationId: a.destinationId }))
+  })
+}
 
-  for (const n of allNodes) {
-    if (Array.isArray(n.interactions)) {
-      for (const interaction of n.interactions) {
-        const triggerType = interaction.trigger?.type || 'UNKNOWN'
-        for (const action of (interaction.actions || [])) {
-          if (action.destinationId) {
-            interactions.push({ type: 'prototype', trigger: triggerType, triggerNode: { id: n.id, name: n.name }, destinationId: action.destinationId })
-          }
-        }
-      }
-    }
-    if (n.transitionNodeID) {
-      interactions.push({ type: 'prototype', trigger: 'ON_CLICK', triggerNode: { id: n.id, name: n.name }, destinationId: n.transitionNodeID })
-    }
-    if (n.type === 'CONNECTOR' && n.connectorStart?.endpointNodeId && n.connectorEnd?.endpointNodeId) {
-      interactions.push({ type: 'connector', from: n.connectorStart.endpointNodeId, to: n.connectorEnd.endpointNodeId })
-    }
-  }
+function extractLegacyTransition(node) {
+  if (!node.transitionNodeID) return []
+  return [{ type: 'prototype', trigger: 'ON_CLICK', triggerNode: { id: node.id, name: node.name }, destinationId: node.transitionNodeID }]
+}
 
-  const output = {
+function extractConnectorFlow(node) {
+  if (node.type !== 'CONNECTOR') return []
+  const from = node.connectorStart?.endpointNodeId
+  const to = node.connectorEnd?.endpointNodeId
+  if (!from || !to) return []
+  return [{ type: 'connector', from, to }]
+}
+
+function buildSingleNodeOutput(data, interactions, singleNodeId) {
+  return {
     nodeId: singleNodeId || data.id,
     extractedAt: new Date().toISOString(),
     totalInteractions: interactions.length,
@@ -209,12 +211,23 @@ function extractFlowsFromSingleNode(data, { singleNodeId, outputPath, fileKey })
     connectors: interactions.filter(i => i.type === 'connector').length,
     interactions,
   }
+}
 
+function writeNodeFlows(output, { outputPath, fileKey }) {
   const dest = outputPath || path.join(process.env.HOME, '.figma-differ', fileKey || 'unknown', 'node-flows.json')
   fs.mkdirSync(path.dirname(dest), { recursive: true })
   fs.writeFileSync(dest, JSON.stringify(output, null, 2))
-  console.log(`Extracted ${interactions.length} interactions from node ${output.nodeId}`)
+  console.log(`Extracted ${output.totalInteractions} interactions from node ${output.nodeId}`)
   console.log(`Saved to: ${dest}`)
+}
+
+function extractFlowsFromSingleNode(data, { singleNodeId, outputPath, fileKey }) {
+  const interactions = collectAllNodes(data).flatMap(n => [
+    ...extractPrototypeInteractions(n),
+    ...extractLegacyTransition(n),
+    ...extractConnectorFlow(n),
+  ])
+  writeNodeFlows(buildSingleNodeOutput(data, interactions, singleNodeId), { outputPath, fileKey })
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────
