@@ -392,6 +392,9 @@ function extractComponentStates(nodes) {
 
 // ── Markdown generation ─────────────────────────────────────────────────────
 
+const MAX_INTERACTIONS_DISPLAY = 20
+const MAX_CONNECTORS_DISPLAY = 10
+
 function generateFrameMd(document, frame, index, timestamp) {
   const nodes = walkNodes(document)
   const isPage = document.type === 'CANVAS'
@@ -468,23 +471,23 @@ function generateFrameMd(document, frame, index, timestamp) {
   // Prototype Flows section (from node interactions)
   if (interactions.length > 0) {
     lines.push('## Prototype Flows')
-    for (const i of interactions.slice(0, 20)) {
+    for (const i of interactions.slice(0, MAX_INTERACTIONS_DISPLAY)) {
       const destName = resolveNodeName(i.destinationId, flowsData)
       lines.push(`- ${i.triggerName} [${i.trigger}] → ${destName}`)
     }
-    if (interactions.length > 20) lines.push(`- _...and ${interactions.length - 20} more_`)
+    if (interactions.length > MAX_INTERACTIONS_DISPLAY) lines.push(`- _...and ${interactions.length - MAX_INTERACTIONS_DISPLAY} more_`)
     lines.push('')
   }
 
   // Connectors section
   if (connectorEdges.length > 0) {
     lines.push(`## Connectors (${connectorEdges.length})`)
-    for (const c of connectorEdges.slice(0, 10)) {
+    for (const c of connectorEdges.slice(0, MAX_CONNECTORS_DISPLAY)) {
       const fromName = resolveNodeName(c.from, flowsData)
       const toName = resolveNodeName(c.to, flowsData)
       lines.push(`- ${fromName} → ${toName}`)
     }
-    if (connectorEdges.length > 10) lines.push(`- _...and ${connectorEdges.length - 10} more_`)
+    if (connectorEdges.length > MAX_CONNECTORS_DISPLAY) lines.push(`- _...and ${connectorEdges.length - MAX_CONNECTORS_DISPLAY} more_`)
     lines.push('')
   }
 
