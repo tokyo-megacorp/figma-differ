@@ -447,10 +447,11 @@ server.tool(
           if (existsSync(snapshotFlowsPath)) {
             const snapshotFlows = JSON.parse(readFileSync(snapshotFlowsPath, 'utf8'))
             if (snapshotFlows.interactions?.length) {
-              // Build ID → name map from index.json for readable output
+              // Build ID → name map from index.json — try explicit file_key first, then any local key
               const idToName = {}
-              if (file_key) {
-                const indexPath = join(BASE_DIR, file_key, 'index.json')
+              const indexKey = file_key || findFileKeys()[0]
+              if (indexKey) {
+                const indexPath = join(BASE_DIR, indexKey, 'index.json')
                 if (existsSync(indexPath)) {
                   const idx = JSON.parse(readFileSync(indexPath, 'utf8'))
                   for (const f of idx.frames || []) idToName[f.id] = f.name
@@ -461,12 +462,15 @@ server.tool(
                 if (ep && typeof ep === 'object') return ep.name || idToName[ep.id] || ep.id
                 return resolveName(ep)
               }
-              const formatted = snapshotFlows.interactions
-                .map(i => i.type === 'connector'
-                  ? `connector: ${resolveEndpoint(i.from)} → ${resolveEndpoint(i.to)}`
-                  : `[${i.trigger}] ${i.triggerNode?.name || resolveName(i.triggerNode?.id)} → ${resolveName(i.destinationId)}`)
-                .join('\n')
-              return { content: [{ type: 'text', text: `Flows for ${node_id} (from snapshot ${snapDir}):\n\n${formatted}` }] }
+              const lines = snapshotFlows.interactions.map(i => i.type === 'connector'
+                ? `connector: ${resolveEndpoint(i.from)} → ${resolveEndpoint(i.to)}`
+                : `[${i.trigger}] ${i.triggerNode?.name || resolveName(i.triggerNode?.id)} → ${resolveName(i.destinationId)}`)
+              const rawIdPattern = /^\d+:\d+$/
+              const unresolvedCount = lines.filter(l => rawIdPattern.test(l.split('→').pop()?.trim())).length
+              const hint = unresolvedCount > 0
+                ? `\n\n(${unresolvedCount} endpoint(s) show raw IDs — these reference frames outside the saved subtree. Run /figma-differ:track to build a full file index for complete name resolution.)`
+                : ''
+              return { content: [{ type: 'text', text: `Flows for ${node_id} (from snapshot ${snapDir}):\n\n${lines.join('\n')}${hint}` }] }
             }
             break
           }

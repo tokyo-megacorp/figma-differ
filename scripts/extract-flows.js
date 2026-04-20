@@ -221,26 +221,31 @@ function writeNodeFlows(output, { outputPath, fileKey }) {
   console.log(`Saved to: ${dest}`)
 }
 
-function extractFlowsFromSingleNode(data, { singleNodeId, outputPath, fileKey }) {
-  const allNodes = collectAllNodes(data)
+function buildNameMap(nodes) {
   const nameMap = {}
-  for (const n of allNodes) {
+  for (const n of nodes) {
     if (n.id) nameMap[n.id] = { name: n.name || n.id, type: n.type || 'UNKNOWN' }
   }
-  const interactions = allNodes.flatMap(n => [
-    ...extractPrototypeInteractions(n),
-    ...extractLegacyTransition(n),
-    ...extractConnectorFlow(n),
-  ]).map(interaction => {
-    if (interaction.type !== 'connector') return interaction
-    const fromId = typeof interaction.from === 'string' ? interaction.from : interaction.from?.id
-    const toId = typeof interaction.to === 'string' ? interaction.to : interaction.to?.id
-    return {
-      ...interaction,
-      from: fromId ? { id: fromId, ...(nameMap[fromId] || { name: fromId, type: 'UNKNOWN' }) } : interaction.from,
-      to: toId ? { id: toId, ...(nameMap[toId] || { name: toId, type: 'UNKNOWN' }) } : interaction.to,
-    }
-  })
+  return nameMap
+}
+
+function enrichConnectorEndpoints(interaction, nameMap) {
+  if (interaction.type !== 'connector') return interaction
+  const fromId = typeof interaction.from === 'string' ? interaction.from : interaction.from?.id
+  const toId = typeof interaction.to === 'string' ? interaction.to : interaction.to?.id
+  return {
+    ...interaction,
+    from: fromId ? { id: fromId, ...(nameMap[fromId] || { name: fromId, type: 'UNKNOWN' }) } : interaction.from,
+    to: toId ? { id: toId, ...(nameMap[toId] || { name: toId, type: 'UNKNOWN' }) } : interaction.to,
+  }
+}
+
+function extractFlowsFromSingleNode(data, { singleNodeId, outputPath, fileKey }) {
+  const allNodes = collectAllNodes(data)
+  const nameMap = buildNameMap(allNodes)
+  const interactions = allNodes
+    .flatMap(n => [...extractPrototypeInteractions(n), ...extractLegacyTransition(n), ...extractConnectorFlow(n)])
+    .map(i => enrichConnectorEndpoints(i, nameMap))
   writeNodeFlows(buildSingleNodeOutput(data, interactions, singleNodeId), { outputPath, fileKey })
 }
 
