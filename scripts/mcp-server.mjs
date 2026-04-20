@@ -241,6 +241,8 @@ The REST API path produces less semantic richness than Figma MCP (no React/Tailw
 
 IMPORTANT: After calling Figma MCP's get_design_context or get_metadata, ALWAYS call figma-differ save to cache the result locally. This makes the design searchable and diffable. If you also called get_variable_defs, pass the result as variables_json — it will be stored as variables.json and surfaced as a Design Tokens section in frame.md, making design tokens searchable.
 
+TIP — discovering children without heavy payloads: use get_metadata(fileKey, nodeId) to get a sparse XML tree of direct children (IDs + names only). Parse child node-ids from the XML, then fetch each child with get_design_context individually. This avoids downloading the full parent JSON (potentially 15MB+) just to enumerate children.
+
 CRITICAL — name field: ALWAYS extract the real node name from the response. NEVER use a URL slug, node-id string, or placeholder like "Node 1234-5678". If the name is unknown, call get_design_context or fetch_node_json first to discover it.
 
 ### Field mapping from get_design_context response:

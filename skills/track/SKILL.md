@@ -127,15 +127,20 @@ If QMD is not installed, warn the user but don't fail — tracking and snapshots
 
 ### 10. Save direct children (if `--children`)
 
-If `--children` or `--children=2` was passed, pass `save_children: true` on the root `figma-differ save` call (or re-invoke save for each child when depth=2). The save tool will:
-- Parse the already-fetched node JSON
-- Find direct children matching types `FRAME`, `COMPONENT`, `SECTION`
-- Persist each as a separate indexed entry
-- Automatically extract `flows.json` into each child's snapshot dir
+If `--children` or `--children=2` was passed, use whichever path is available:
 
-No extra API calls or manual child loop needed — `save_children: true` handles it from the already-downloaded JSON.
+**Preferred — Figma MCP (`get_metadata`):**
+`get_metadata` returns a sparse XML tree with IDs and names — no heavy JSON download needed.
 
-For depth=2: after the root save completes, call `figma-differ save` once more for each child node with `save_children: true` to recurse one level deeper.
+1. Call `get_metadata(fileKey, nodeId)` on the root node
+2. Parse child elements with types FRAME, COMPONENT, or SECTION from the XML
+3. For each child: call `get_design_context(fileKey, childId)` → `figma-differ save`
+4. For `--children=2`: repeat step 1–3 for each child
+
+**Fallback — REST API (`save_children: true`):**
+Use when Figma MCP is unavailable. Pass `save_children: true` on the root `figma-differ save` call; the tool parses the already-fetched node JSON and persists matching children automatically.
+
+For depth=2 via REST: call `figma-differ save` with `save_children: true` for each child returned by the first call.
 
 Report child count in the final summary.
 
