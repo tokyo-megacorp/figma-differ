@@ -280,9 +280,9 @@ server.tool(
         const isThin = nodeCount <= 1 || desc.length < 30 || desc === 'screen' || /^(light|dark) mode screen$/.test(desc)
 
         if (isThin) {
-          const fk = fm.figma_file || ''
-          const nid = fm.figma_node || ''
-          const hint = `\n\n---\nThis frame has shallow data (${nodeCount} node${nodeCount !== 1 ? 's' : ''}). Enrich it:\n\n**Primary (Figma MCP):**\n1. Call Figma MCP get_design_context(fileKey: "${fk}", nodeId: "${nid}")\n2. Call figma-differ save with extracted components and text content\n\n**Fallback (if Figma MCP unavailable or errors):**\n1. Run: \`bash ${SCRIPTS_DIR}/figma-api.sh fetch_node_json ${fk} ${nid} | node ${SCRIPTS_DIR}/simplify-node.mjs > /tmp/simplified.json\`\n2. Extract name, node_type, components (INSTANCE/COMPONENT nodes), text_content (TEXT nodes) from simplified JSON\n3. Call figma-differ save with node_json ← contents of /tmp/simplified.json and extracted metadata`
+          const fileKey = fm.figma_file || ''
+          const nodeId = fm.figma_node || ''
+          const hint = `\n\n---\nThis frame has shallow data (${nodeCount} node${nodeCount !== 1 ? 's' : ''}). Enrich it:\n\n**Primary (Figma MCP):**\n1. Call Figma MCP get_design_context(fileKey: "${fileKey}", nodeId: "${nodeId}")\n2. Call figma-differ save with extracted components and text content\n\n**Fallback (if Figma MCP unavailable or errors):**\n1. Run: \`bash ${SCRIPTS_DIR}/figma-api.sh fetch_node_json ${fileKey} ${nodeId} | node ${SCRIPTS_DIR}/simplify-node.mjs > /tmp/simplified.json\`\n2. Extract name, node_type, components (INSTANCE/COMPONENT nodes), text_content (TEXT nodes) from simplified JSON\n3. Call figma-differ save with node_json ← contents of /tmp/simplified.json and extracted metadata`
           return { content: [{ type: 'text', text: text + hint }] }
         }
 
