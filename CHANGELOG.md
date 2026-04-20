@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.2] — 2026-04-20 — Fix Connector Name Resolution in Single-Node Flows
+
+### Fixed
+- `extract-flows.js` `extractFlowsFromSingleNode`: build local `nameMap` from `collectAllNodes` and enrich connector `from`/`to` with `{id, name, type}` objects — raw string IDs no longer appear in single-node `flows.json`
+- `mcp-server.mjs` `get_flows` snapshot path: add `resolveEndpoint` helper that handles both legacy string IDs (full-tree path) and enriched objects (single-node path) — `get_flows` now always shows readable frame names
+
 ## [0.4.1] — 2026-04-20 — Mode Auto-Detection & Local-First Routing
 
 ### Added
