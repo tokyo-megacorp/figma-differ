@@ -175,7 +175,7 @@ function collectAllNodes(node, acc) {
 
 // ── Single-node extraction ───────────────────────────────────────────────────
 
-function extractFlowsFromSingleNode(data, singleNodeId, outputPath, fileKey) {
+function extractFlowsFromSingleNode(data, { singleNodeId, outputPath, fileKey }) {
   const allNodes = collectAllNodes(data)
   const interactions = []
 
@@ -221,7 +221,7 @@ function main() {
   const data = JSON.parse(raw)
 
   if (!data.document && data.id != null) {
-    extractFlowsFromSingleNode(data, singleNodeId, outputPath, fileKey)
+    extractFlowsFromSingleNode(data, { singleNodeId, outputPath, fileKey })
     return
   }
 
