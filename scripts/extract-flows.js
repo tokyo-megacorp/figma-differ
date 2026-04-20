@@ -243,7 +243,13 @@ function main() {
   }
 
   const raw = fs.readFileSync(inputPath, 'utf8')
-  const data = JSON.parse(raw)
+  let data = JSON.parse(raw)
+
+  // Normalize Figma /nodes API response: {nodes: {"id": {document: {...}}}}
+  if (data.nodes && data.id == null && !data.document) {
+    const firstEntry = Object.values(data.nodes)[0]
+    if (firstEntry) data = firstEntry.document || firstEntry
+  }
 
   if (!data.document && data.id != null) {
     extractFlowsFromSingleNode(data, { singleNodeId, outputPath, fileKey })

@@ -184,6 +184,14 @@ fetch_file_tree() {
   _figma_get "/files/${file_key}?depth=${depth}"
 }
 
+fetch_prototype_data() {
+  local file_key="$1" node_id="$2"
+  _check_deps
+  _check_token
+  echo "Fetching full file for prototype interactions (node: ${node_id})..." >&2
+  _figma_get "/files/${file_key}" | node "${_FIGMA_API_SCRIPT_DIR}/simplify-node.mjs" --subtree "${node_id}"
+}
+
 _fetch_image_chunk() {
   # Returns "ok fail" counts on stdout — caller accumulates
   local file_key="$1" chunk="$2" output_dir="$3"
@@ -402,16 +410,17 @@ command="${1:-}"
 shift || true
 
 case "$command" in
-  fetch_node_json)    fetch_node_json "$@" ;;
-  fetch_node_png)     fetch_node_png "$@" ;;
-  fetch_comments)     fetch_comments "$@" ;;
-  fetch_file_tree)    fetch_file_tree "$@" ;;
-  fetch_batch_nodes)  fetch_batch_nodes "$@" ;;
-  fetch_batch_images) fetch_batch_images "$@" ;;
-  fetch_image_urls)  fetch_image_urls "$@" ;;
-  fetch_versions)    fetch_versions "$@" ;;
+  fetch_node_json)       fetch_node_json "$@" ;;
+  fetch_node_png)        fetch_node_png "$@" ;;
+  fetch_comments)        fetch_comments "$@" ;;
+  fetch_file_tree)       fetch_file_tree "$@" ;;
+  fetch_batch_nodes)     fetch_batch_nodes "$@" ;;
+  fetch_batch_images)    fetch_batch_images "$@" ;;
+  fetch_image_urls)      fetch_image_urls "$@" ;;
+  fetch_versions)        fetch_versions "$@" ;;
+  fetch_prototype_data)  fetch_prototype_data "$@" ;;
   *)
-    echo "Usage: figma-api.sh <fetch_node_json|fetch_node_png|fetch_comments|fetch_file_tree|fetch_batch_nodes|fetch_batch_images|fetch_image_urls|fetch_versions> [args]" >&2
+    echo "Usage: figma-api.sh <fetch_node_json|fetch_node_png|fetch_comments|fetch_file_tree|fetch_batch_nodes|fetch_batch_images|fetch_image_urls|fetch_versions|fetch_prototype_data> [args]" >&2
     exit 1
     ;;
 esac

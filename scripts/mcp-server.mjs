@@ -211,8 +211,11 @@ const server = new McpServer({
 When Figma MCP is unavailable or returns an error, fall back to the REST API:
 
 \`\`\`
-# Fetch, simplify, and save node via REST API
+# Fetch, simplify, and save node via REST API (structure only — no prototype interactions)
 bash ${SCRIPTS_DIR}/figma-api.sh fetch_node_json <file_key> <node_id> | node ${SCRIPTS_DIR}/simplify-node.mjs > /tmp/simplified.json
+
+# Fetch node WITH prototype interactions (uses full-file endpoint — may be slow for large files)
+bash ${SCRIPTS_DIR}/figma-api.sh fetch_prototype_data <file_key> <node_id> > /tmp/simplified.json
 
 # Fetch node PNG via REST API
 bash ${SCRIPTS_DIR}/figma-api.sh fetch_node_png <file_key> <node_id> <output_path>
@@ -572,6 +575,12 @@ function persistNode({ file_key, node_id, name, page, node_type, node_json, meta
   writeNodeSnapshot({ snapshotDir, nodeJsonPath, node_json, node_id })
   const { index } = updateFrameIndex({ fileDir, file_key, node_id, name, node_type, page, timestamp, sharedIndex })
   buildFrameMd({ file_key, node_id, name, page, node_type, metadata, index, timestamp, frameDir })
+  try {
+    execSyncRaw(
+      `node "${SCRIPTS_DIR}/generate-frame-md.js" "${file_key}" "${node_id}"`,
+      { encoding: 'utf8', timeout: QMD_UPDATE_TIMEOUT_MS, stdio: 'pipe' }
+    )
+  } catch { /* non-critical: full frame.md extraction */ }
 
   return { snapshotDir, index }
 }
