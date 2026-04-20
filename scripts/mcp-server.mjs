@@ -98,6 +98,16 @@ function findFrameMd(fileKey, nodeId) {
   return readFileSync(p, 'utf8')
 }
 
+function hasNodeJsonSnapshot(fileKey, nodeId) {
+  const safe = nodeId.replace(/:/g, '_')
+  const frameDir = join(BASE_DIR, fileKey, safe)
+  if (!existsSync(frameDir)) return false
+  return readdirSync(frameDir).some(entry => {
+    const candidate = join(frameDir, entry, 'node.json')
+    return existsSync(candidate)
+  })
+}
+
 function parseFrontmatter(md) {
   const match = md.match(/^---\n([\s\S]*?)\n---/)
   if (!match) return {}
@@ -324,8 +334,9 @@ server.tool(
         const nodeCount = parseInt(fm.node_count || '0', 10)
         const desc = fm.description || ''
         const isThin = nodeCount <= 1 || desc.length < 30 || desc === 'screen' || /^(light|dark) mode screen$/.test(desc)
+        const alreadySnapshotted = hasNodeJsonSnapshot(fk, normalizedId)
 
-        if (isThin) {
+        if (isThin && !alreadySnapshotted) {
           const fileKey = fm.figma_file || ''
           const nodeId = fm.figma_node || ''
           const enrichmentHint = generateFrameEnrichmentHint(fileKey, nodeId, nodeCount)
