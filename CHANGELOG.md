@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.3.4] — 2026-04-20 — Fix Subtree Node ID Normalization
+
+### Fixed
+- `simplify-node.mjs` `--subtree`: normalize dash → colon (`/[_-]/g`) in addition to underscore — Figma URLs pass node IDs with dashes (e.g. `45405-271609`) which couldn't be matched against API IDs using colons (`45405:271609`)
+
 ## [0.3.3] — 2026-04-20 — Fix Prototype Depth & DoOneThing Refactor
 
 ### Fixed
