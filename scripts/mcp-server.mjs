@@ -14,11 +14,14 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { z } from 'zod'
-import { execSync, execSync as execSyncRaw } from 'child_process'
+import { exec } from 'child_process'
+import { promisify } from 'util'
 import { readFileSync, writeFileSync, readdirSync, mkdirSync, existsSync, statSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { homedir } from 'os'
+
+const execAsync = promisify(exec)
 
 const SCRIPTS_DIR = dirname(fileURLToPath(import.meta.url))
 
@@ -166,21 +169,20 @@ function summarizeFrameMd(md) {
   return parts.join('\n').trim()
 }
 
-function qmdSearch(query, limit = 10) {
+async function qmdSearch(query, limit = 10) {
   try {
-    const out = execSync(
+    const { stdout } = await execAsync(
       `qmd search -n ${limit} -c figma --json "${query.replace(/"/g, '\\"')}"`,
-      { encoding: 'utf8', timeout: FLOWS_EXTRACTION_TIMEOUT_MS, stdio: ['pipe', 'pipe', 'pipe'] }
+      { encoding: 'utf8', timeout: FLOWS_EXTRACTION_TIMEOUT_MS }
     )
-    return JSON.parse(out)
-  } catch (e) {
-    // Fallback: try without --json
+    return JSON.parse(stdout)
+  } catch {
     try {
-      const out = execSync(
+      const { stdout } = await execAsync(
         `qmd search -n ${limit} -c figma "${query.replace(/"/g, '\\"')}"`,
-        { encoding: 'utf8', timeout: FLOWS_EXTRACTION_TIMEOUT_MS, stdio: ['pipe', 'pipe', 'pipe'] }
+        { encoding: 'utf8', timeout: FLOWS_EXTRACTION_TIMEOUT_MS }
       )
-      return out
+      return stdout
     } catch {
       return null
     }
@@ -306,16 +308,16 @@ server.tool(
   'Check which Figma data modes are available: REST API token status, local cache size, and QMD search availability. Call this at session start to know whether to use Figma MCP, REST API, or offline cache only.',
   {},
   async () => {
-    const restAvailable = (() => {
+    const restAvailable = await (async () => {
       try {
-        execSync(`bash "${SCRIPTS_DIR}/auth.sh" status`, { encoding: 'utf8', stdio: 'pipe' })
+        await execAsync(`bash "${SCRIPTS_DIR}/auth.sh" status`, { encoding: 'utf8' })
         return true
       } catch { return false }
     })()
 
-    const qmdAvailable = (() => {
+    const qmdAvailable = await (async () => {
       try {
-        execSync('which qmd', { encoding: 'utf8', stdio: 'pipe' })
+        await execAsync('which qmd', { encoding: 'utf8' })
         return true
       } catch { return false }
     })()
@@ -355,7 +357,7 @@ server.tool(
     limit: z.number().optional().default(5).describe('Max results (default 5)'),
   },
   async ({ query, limit }) => {
-    const results = qmdSearch(query, limit)
+    const results = await qmdSearch(query, limit)
     if (!results) {
       return { content: [{ type: 'text', text: 'QMD not available. Install: brew install qmd' }] }
     }
@@ -583,15 +585,14 @@ server.tool(
   }
 )
 
-function writeNodeSnapshot({ snapshotDir, nodeJsonPath, node_json, node_id, variables_json }) {
+async function writeNodeSnapshot({ snapshotDir, nodeJsonPath, node_json, node_id, variables_json }) {
   mkdirSync(snapshotDir, { recursive: true })
   if (node_json) {
     writeFileSync(nodeJsonPath, node_json, 'utf8')
-    // Extract node-level flows into snapshot (best-effort)
     try {
-      execSyncRaw(
+      await execAsync(
         `node "${SCRIPTS_DIR}/extract-flows.js" --node "${node_id}" --output "${join(snapshotDir, 'flows.json')}" "${nodeJsonPath}"`,
-        { encoding: 'utf8', timeout: FLOWS_EXTRACTION_TIMEOUT_MS, stdio: 'pipe' }
+        { encoding: 'utf8', timeout: FLOWS_EXTRACTION_TIMEOUT_MS }
       )
     } catch { /* flows extraction is non-critical */ }
   }
@@ -650,7 +651,7 @@ function buildFrameMd({ file_key, node_id, name, page, node_type, metadata, inde
   writeFileSync(join(frameDir, 'frame.md'), mdLines.join('\n'), 'utf8')
 }
 
-function persistNode({ file_key, node_id, name, page, node_type, node_json, metadata, index: sharedIndex, variables_json }) {
+async function persistNode({ file_key, node_id, name, page, node_type, node_json, metadata, index: sharedIndex, variables_json }) {
   const nodeIdSafe = node_id.replace(/:/g, '_')
   const timestamp = new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '').replace('T', 'T').slice(0, 15) + 'Z'
   const fileDir = join(BASE_DIR, file_key)
@@ -658,23 +659,23 @@ function persistNode({ file_key, node_id, name, page, node_type, node_json, meta
   const snapshotDir = join(frameDir, timestamp)
   const nodeJsonPath = join(snapshotDir, 'node.json')
 
-  writeNodeSnapshot({ snapshotDir, nodeJsonPath, node_json, node_id, variables_json })
+  await writeNodeSnapshot({ snapshotDir, nodeJsonPath, node_json, node_id, variables_json })
   const { index } = updateFrameIndex({ fileDir, file_key, node_id, name, node_type, page, timestamp, sharedIndex })
   buildFrameMd({ file_key, node_id, name, page, node_type, metadata, index, timestamp, frameDir })
 
   return { snapshotDir, index }
 }
 
-function tryEnrichFrameMarkdown(file_key, node_id) {
+async function tryEnrichFrameMarkdown(file_key, node_id) {
   try {
-    execSyncRaw(
+    await execAsync(
       `node "${SCRIPTS_DIR}/generate-frame-md.js" "${file_key}" "${node_id}"`,
-      { encoding: 'utf8', timeout: QMD_UPDATE_TIMEOUT_MS, stdio: 'pipe' }
+      { encoding: 'utf8', timeout: QMD_UPDATE_TIMEOUT_MS }
     )
   } catch { /* non-critical: full frame.md extraction */ }
 }
 
-function saveChildren({ file_key, page, node_json, child_types, sharedIndex }) {
+async function saveChildren({ file_key, page, node_json, child_types, sharedIndex }) {
   const allowedTypes = new Set(child_types?.length ? child_types : ['SECTION', 'FRAME', 'COMPONENT'])
   let parsed
   try { parsed = JSON.parse(node_json) } catch { return { saved: [], error: 'invalid JSON' } }
@@ -683,8 +684,8 @@ function saveChildren({ file_key, page, node_json, child_types, sharedIndex }) {
   const saved = []
   for (const child of children) {
     try {
-      persistNode({ file_key, node_id: child.id, name: child.name, page, node_type: child.type, node_json: JSON.stringify(child), index: sharedIndex })
-      tryEnrichFrameMarkdown(file_key, child.id)
+      await persistNode({ file_key, node_id: child.id, name: child.name, page, node_type: child.type, node_json: JSON.stringify(child), index: sharedIndex })
+      await tryEnrichFrameMarkdown(file_key, child.id)
       saved.push(`  → ${child.name} (${child.id})`)
     } catch (childErr) {
       saved.push(`  ✗ ${child.name} (${child.id}): ${childErr.message}`)
@@ -722,19 +723,18 @@ The node is stored as a snapshot and indexed for semantic search.`,
       node_json = readFileSync(node_json_path, 'utf8')
     }
     try {
-      const { snapshotDir, index } = persistNode({ file_key, node_id, name, page, node_type, node_json, metadata, variables_json })
-      tryEnrichFrameMarkdown(file_key, node_id)
+      const { snapshotDir, index } = await persistNode({ file_key, node_id, name, page, node_type, node_json, metadata, variables_json })
+      await tryEnrichFrameMarkdown(file_key, node_id)
 
-      // Try to update QMD index (best-effort)
       try {
-        execSyncRaw('qmd update 2>/dev/null && qmd embed 2>/dev/null', { encoding: 'utf8', timeout: QMD_UPDATE_TIMEOUT_MS, stdio: 'pipe' })
+        await execAsync('qmd update 2>/dev/null && qmd embed 2>/dev/null', { encoding: 'utf8', timeout: QMD_UPDATE_TIMEOUT_MS })
       } catch { /* QMD not available */ }
 
       if (!save_children || !node_json) {
         return { content: [{ type: 'text', text: `Saved: ${name} (${node_id}) to figma-differ\n  Type: ${node_type || 'FRAME'}\n  Page: ${page || 'Unknown'}\n  Snapshot: ${snapshotDir}\n  Searchable: yes (frame.md indexed)\n\nThis node is now searchable via figma-differ search.` }] }
       }
 
-      const { saved, count, error } = saveChildren({ file_key, page, node_json, child_types, sharedIndex: index })
+      const { saved, count, error } = await saveChildren({ file_key, page, node_json, child_types, sharedIndex: index })
       if (error) return { content: [{ type: 'text', text: `Saved: ${name} (${node_id}) — save_children skipped: ${error}` }] }
       return { content: [{ type: 'text', text: `Saved: ${name} (${node_id}) + ${count} children\n${saved.join('\n')}\n\nAll entries are searchable via figma-differ search.` }] }
     } catch (e) {
