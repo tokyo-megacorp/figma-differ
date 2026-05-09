@@ -65,7 +65,9 @@ data/            — reference data
 
 ## AGENTS File Index
 
-- `/AGENTS.md` (this file)
+Exhaustive list of every `AGENTS.md` in this repo. Keep this section in sync — additions here are the format's most-broken contract.
+
+- [`/AGENTS.md`](AGENTS.md) — TODO: one-line purpose
 - [`/agents/AGENTS.md`](agents/AGENTS.md) — 2 agent definitions
 - [`/skills/AGENTS.md`](skills/AGENTS.md) — 11 skill subdirs
 - [`/tests/AGENTS.md`](tests/AGENTS.md) — test suite contract
@@ -78,3 +80,30 @@ Update this file when:
 - The auth storage location changes
 - The snapshot path schema changes
 - A new entry point is added to `.claude-plugin/`
+
+## Reviewer Contract
+
+Reviewers must treat the `AGENTS.md` hierarchy as part of the code contract. Block or request changes when a PR:
+
+- Adds, removes, or moves a top-level directory without updating the root AGENTS File Index and Documentation Hierarchy.
+- Adds a new ownership boundary without a local `AGENTS.md` or an explicit inheritance decision in the nearest parent contract.
+- Changes subsystem responsibilities, public entrypoints, runtime behavior, dependencies, or cross-subsystem contracts without updating the relevant child `AGENTS.md`.
+- Changes verification requirements without updating local `Verification` and `Change Triggers` sections.
+- Duplicates global routing rules outside the canonical routing contract.
+- Leaves discovered child `AGENTS.md` files and the root index out of sync.
+
+Prefer small local contract updates over broad root-file expansion.
+
+## Child Contract Schema
+
+Every child `AGENTS.md` should use this local schema:
+
+- `Local Role`
+- `Product Vision Fit`
+- `Tech Stack Boundaries`
+- `Owns`
+- `Does Not Own`
+- `Routes Elsewhere`
+- `Local Examples`
+- `Verification`
+- `Change Triggers`
