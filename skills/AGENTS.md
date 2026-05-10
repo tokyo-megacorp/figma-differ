@@ -30,39 +30,3 @@ triggers:
 ```
 
 Body: instructions the agent follows. Write artifacts to files, not inline.
-
-## Local Role
-
-TODO: Fill in this local contract section.
-
-## Product Vision Fit
-
-TODO: Fill in this local contract section.
-
-## Tech Stack Boundaries
-
-TODO: Fill in this local contract section.
-
-## Owns
-
-TODO: Fill in this local contract section.
-
-## Does Not Own
-
-TODO: Fill in this local contract section.
-
-## Routes Elsewhere
-
-TODO: Fill in this local contract section.
-
-## Local Examples
-
-TODO: Fill in this local contract section.
-
-## Verification
-
-TODO: Fill in this local contract section.
-
-## Change Triggers
-
-TODO: Fill in this local contract section.
